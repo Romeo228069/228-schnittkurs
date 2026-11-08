@@ -1,0 +1,20 @@
+rules_version = '2';
+// Nur Romeo und Kamila haben Zugriff. Die Adressen müssen mit js/config.js übereinstimmen.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isRomeo() { return request.auth != null && request.auth.token.email == 'romeo.kurs@228motions.de'; }
+    function isKamila() { return request.auth != null && request.auth.token.email == 'kamila.kurs@228motions.de'; }
+    function member() { return isRomeo() || isKamila(); }
+
+    // Kamilas Fortschritt: beide lesen, Kamila schreibt, Romeo darf korrigieren oder zurücksetzen
+    match /kurs/progress { allow read, write: if member(); }
+    // Romeos Anpassungen am Kurs: beide lesen, nur Romeo schreibt
+    match /kurs/course { allow read: if member(); allow write: if isRomeo(); }
+    // Gespräche je Lektion: beide lesen und schreiben
+    match /kurs/notes { allow read, write: if member(); }
+    // Verlauf: Kamila legt Einträge an, nur Romeo liest
+    match /events/{id} { allow create: if isKamila(); allow read, delete: if isRomeo(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
