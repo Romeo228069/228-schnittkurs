@@ -4,8 +4,9 @@
 export const IMG = {
   project_manager: [1600, 1125], settings_master: [1040, 1080], settings_proxy: [1040, 1080], new_timeline: [1000, 576],
   media_page: [1600, 952], edit_full: [1600, 952], inspector: [1600, 952], effects_titles: [1600, 952], effects_transitions: [1600, 952],
-  title_timeline: [1600, 952], retime: [1600, 952], fusion_page: [1600, 952], color_page: [1600, 952], fairlight_page: [1600, 952], deliver_page: [1600, 952],
-  proxy_generator: [1400, 1009]
+  title_timeline: [1600, 952], retime: [1600, 952], fusion_page: [1600, 952], fairlight_page: [1600, 952], deliver_page: [1600, 952],
+  proxy_generator: [1400, 1009], color_page: [1600, 1003], cut_page: [1600, 1003], subtitles: [1600, 1003], vertical: [1600, 1003], multicam: [1600, 1003],
+  prefs_ui: [946, 800], prefs_save: [946, 800]
 };
 
 const TB = 48.8, TH = 3.4; // Werkzeugleiste der Edit Page
@@ -187,16 +188,19 @@ export const SHOTS = {
   l16: {
     why: { de: "Erst korrigieren, dann Look. Die Scopes messen, was das Auge falsch sieht.", en: "Correct first, then the look. Scopes measure what your eye gets wrong." },
     shots: [
-      { img: "color_page", title: { de: "Color Page", en: "Color page" }, spots: [
-        [[0, 4, 40, 43], "Viewer: hier ein flacher Clip wie Log Material.", "Viewer: here a flat clip like log footage."],
-        [[41, 4, 34, 44], "Node Editor: ein Node pro Aufgabe. Neuer Node [[opt+S]].", "Node editor: one node per task. New node [[opt+S]]."],
-        [[0, 51, 56, 11], "Clips der Timeline. Nächsten Clip wählen und [[eq]] übernimmt die Korrektur davor.", "Timeline clips. Select the next clip and [[eq]] copies the correction before it."],
-        [[0, 63, 50, 3.5], "Paletten. Die Räder sitzen unter dem dritten Symbol.", "Palettes. The wheels are under the third icon."],
-        [[0, 66.5, 50, 26.5], "Farbräder für Schatten, Mitten, Lichter, alles. In der Ansicht Primaries heißen sie Lift, Gamma, Gain, Offset.", "Color wheels for shadows, mids, highlights, everything. In the Primaries view they are called Lift, Gamma, Gain, Offset."],
-        [[0, 93, 25, 4], "Temp und Tint: Farbstich raus.", "Temp and Tint: remove color casts."]
+      { img: "color_page", title: { de: "Color Page mit Parade Scope, vorher", en: "Color page with parade scope, before" }, spots: [
+        [[0, 9, 41.8, 37.7], "Viewer: ein flacher Clip wie Log Material.", "Viewer: a flat clip like log footage."],
+        [[50.4, 17.9, 3.5, 5.2], "Node 01. Ein Node pro Aufgabe, neuer Node mit [[opt+S]].", "Node 01. One node per task, new node with [[opt+S]]."],
+        [[0, 53.2, 55.3, 11.3], "Clips der Timeline. Nächsten Clip wählen und [[eq]] übernimmt die Korrektur davor.", "Timeline clips. Select the next clip and [[eq]] copies the correction before it."],
+        [[7.8, 65.9, 1.8, 2.5], "Das dritte Symbol öffnet die Farbräder.", "The third icon opens the color wheels."],
+        [[0, 74.9, 49.9, 16.1], "Lift für Schatten, Gamma für Mitten, Gain für Lichter, Offset für alles.", "Lift for shadows, Gamma for mids, Gain for highlights, Offset for everything."],
+        [[7.9, 71.7, 14.5, 2.1], "Temp und Tint: Farbstich raus.", "Temp and Tint: remove color casts."],
+        [[50.2, 71.2, 49.8, 25.6], "Parade: Rot, Grün und Blau getrennt, Skala 0 bis 1023. Hier liegt alles zusammengedrückt in der Mitte, also Lift runter und Gain hoch.", "Parade: red, green and blue separately, scale 0 to 1023. Here everything is squeezed into the middle, so lower Lift and raise Gain."],
+        [[89.2, 69.1, 4, 1.8], "Hier wechselst du zwischen Parade, Waveform und Vectorscope.", "Switch between parade, waveform and vectorscope here."],
+        [[93.9, 65.9, 1.9, 2.5], "Scopes ein und aus.", "Scopes on and off."]
       ] }
     ],
-    steps: { de: ["[[shift+6]], dann Scopes einblenden (Symbol rechts über den Keyframes oder [[shift+cmd+W]]).", "Der Waveform zählt in Resolve von 0 (Schwarz) bis 1023 (Weiß). Das Dunkelste knapp über 0, das Hellste knapp unter 1023, nichts platt abschneiden.", "Etwas Graues steht im Parade Scope in Rot, Grün und Blau gleich hoch."], en: ["[[shift+6]], then show the scopes (icon on the right above the keyframes or [[shift+cmd+W]]).", "In Resolve the waveform runs from 0 (black) to 1023 (white). The darkest part just above 0, the brightest just below 1023, nothing clipped flat.", "Something grey sits at equal height in red, green and blue on the parade scope."] },
+    steps: { de: ["[[shift+6]], dann Scopes einblenden (Symbol rechts in der Palettenleiste) und oben rechts Parade oder Waveform wählen.", "Der Waveform zählt in Resolve von 0 (Schwarz) bis 1023 (Weiß). Das Dunkelste knapp über 0, das Hellste knapp unter 1023, nichts platt abschneiden.", "Etwas Graues steht im Parade Scope in Rot, Grün und Blau gleich hoch."], en: ["[[shift+6]], then show the scopes (icon on the right of the palette bar) and choose Parade or Waveform at the top right.", "In Resolve the waveform runs from 0 (black) to 1023 (white). The darkest part just above 0, the brightest just below 1023, nothing clipped flat.", "Something grey sits at equal height in red, green and blue on the parade scope."] },
     tips: { de: ["[[shift+D]]: alle Korrekturen aus und an, ehrlicher Vergleich.", "Graues, flaues Material ist meist Log. Dann Project Settings > Color Management > DaVinci YRGB Color Managed."], en: ["[[shift+D]]: all corrections off and on, an honest comparison.", "Grey, flat footage is usually log. Then Project Settings > Color Management > DaVinci YRGB Color Managed."] }
   },
   l17: {
@@ -232,6 +236,70 @@ export const SHOTS = {
     shots: [
       { img: "media_page", title: { de: "So sieht der Projektordner in Resolve aus", en: "This is the project folder in Resolve" }, spots: [
         [[15, 5, 23, 18], "Sechs feste Unterordner, immer gleich.", "Six fixed subfolders, always the same."]
+      ] }
+    ]
+  },
+  l3: {
+    shots: [
+      { img: "prefs_ui", title: { de: "Preferences > User > UI Settings", en: "Preferences > User > UI Settings" }, spots: [
+        [[50.1, 4.9, 11.1, 2.8], "Reiter User: deine persönlichen Einstellungen.", "User tab: your personal settings."],
+        [[38.9, 4.9, 11.1, 2.8], "Reiter System: dort unter Media Storage die schnellste Festplatte nach oben.", "System tab: under Media Storage move your fastest drive to the top."],
+        [[49.4, 14.4, 12.5, 2.6], "Language: am besten Englisch lassen. Alle Tutorials nutzen die englischen Namen.", "Language: best left on English. Every tutorial uses the English names."],
+        [[1.8, 21.9, 21.9, 2.8], "Project Save and Load: dort schaltest du Live Save ein, nächstes Bild.", "Project Save and Load: that's where you turn on Live Save, next picture."]
+      ] },
+      { img: "prefs_save", title: { de: "Preferences > User > Project Save and Load", en: "Preferences > User > Project Save and Load" }, spots: [
+        [[48.8, 24.5, 8.8, 2.3], "Live save: speichert jede Änderung sofort mit.", "Live save: stores every change immediately."],
+        [[48.8, 27.6, 12.5, 2.3], "Project backups: zusätzlich regelmäßige Sicherungskopien. Haken setzen.", "Project backups: regular backup copies on top. Tick it."],
+        [[48.8, 34, 29.4, 9.5], "Wie oft und wie lange gesichert wird. Die Standardwerte passen.", "How often and how long backups are kept. The defaults are fine."],
+        [[86.2, 94.4, 11.6, 3.1], "Save, danach Resolve einmal neu starten.", "Save, then restart Resolve once."]
+      ] }
+    ]
+  },
+  l14: {
+    shots: [
+      { img: "cut_page", title: { de: "Cut Page", en: "Cut page" }, spots: [
+        [[0, 6, 47.1, 62], "Media Pool mit deinen Clips.", "Media Pool with your clips."],
+        [[47.7, 3.7, 4.7, 1.8], "Source Clip, Source Tape, Timeline. Source Tape zeigt alle Clips des Bins als ein Band.", "Source Clip, Source Tape, Timeline. Source Tape shows all clips of the bin as one reel."],
+        [[16.3, 68.9, 14.1, 2.5], "Smart Insert, Append, Ripple Overwrite, Close Up, Place on Top, Source Overwrite.", "Smart Insert, Append, Ripple Overwrite, Close Up, Place on Top, Source Overwrite."],
+        [[13.7, 72.4, 86.3, 9.7], "Oben: die ganze Timeline im Überblick.", "Top: the whole timeline at a glance."],
+        [[13.4, 82.4, 86.6, 15], "Unten: vergrößert rund um den Playhead. Hier schneidest du genau.", "Bottom: zoomed in around the playhead. This is where you cut precisely."],
+        [[38.3, 97.1, 5.8, 2.9], "Cut Page: [[shift+3]].", "Cut page: [[shift+3]]."]
+      ] }
+    ]
+  },
+  l20: {
+    shots: [
+      { img: "multicam", title: { de: "Ein Multicam Clip von innen", en: "A multicam clip from the inside" }, spots: [
+        [[18.2, 9.4, 4.3, 5.7], "Der Multicam Clip im Media Pool. Rechtsklick > Open in Timeline zeigt ihn so von innen.", "The multicam clip in the Media Pool. Right click > Open in Timeline shows it from the inside like this."],
+        [[45.4, 3.5, 10.4, 1.8], "Name des Multicam Clips, hier aufgeklappt wie eine Timeline.", "Name of the multicam clip, opened up here like a timeline."],
+        [[0, 56.3, 15, 28.7], "Jede Kamera ist ein Winkel, Angle 1 bis 4, eine Spur pro Kamera.", "Each camera is an angle, Angle 1 to 4, one track per camera."],
+        [[15.1, 56.3, 14.3, 28.7], "Alle Winkel liegen synchron übereinander. Dafür sorgt Angle Sync.", "All angles sit in sync on top of each other. Angle Sync takes care of that."],
+        [[0, 85.3, 29.4, 11], "Auch der Ton jeder Kamera ist dabei.", "Each camera's sound is included too."],
+        [[30.2, 5.5, 41, 36.7], "Aufgeklappt zeigt der Viewer die oberste Spur. Zum Schneiden stellst du den Source Viewer auf Multicam und siehst alle Winkel nebeneinander.", "Opened up, the viewer shows the top track. For cutting you switch the source viewer to Multicam and see all angles side by side."]
+      ] }
+    ]
+  },
+  l21: {
+    shots: [
+      { img: "subtitles", title: { de: "Untertitel in der Edit Page", en: "Subtitles on the Edit page" }, spots: [
+        [[0, 63.8, 84.2, 2.6], "Untertitelspur ST1. Jeder Untertitel ist ein eigener Clip.", "Subtitle track ST1. Each subtitle is a clip of its own."],
+        [[62.2, 63.8, 7.2, 2.6], "Ein Untertitel. Kanten ziehen ändert, wann er kommt und geht.", "One subtitle. Dragging the edges changes when it appears and leaves."],
+        [[34.5, 30.6, 16.6, 3.4], "Automatische Untertitel setzen Satzzeichen und machen Fehler, hier Teameline statt Timeline. Immer lesen.", "Automatic subtitles add punctuation and make mistakes, here Teameline instead of Timeline. Always read them."],
+        [[76.5, 20.7, 22, 9.4], "Inspector unter Caption: hier den Text korrigieren und die Satzzeichen löschen.", "Inspector under Caption: correct the text here and delete the punctuation."],
+        [[87.8, 11.1, 11.6, 2.4], "Reiter Track: Schrift, Größe und Position für alle Untertitel der Spur.", "Track tab: font, size and position for all subtitles on the track."],
+        [[75.7, 37.7, 24.3, 10.2], "Liste aller Untertitel. Prev und Next springen durch.", "List of all subtitles. Prev and Next step through them."],
+        [[16.8, 83.5, 67.4, 6.1], "Aus dieser Sprachspur hat Resolve die Untertitel erzeugt.", "Resolve created the subtitles from this speech track."]
+      ] }
+    ]
+  },
+  l22: {
+    shots: [
+      { img: "vertical", title: { de: "Hochformat Timeline Reel_v01", en: "Vertical timeline Reel_v01" }, spots: [
+        [[49.1, 8.3, 14.4, 34.1], "Viewer im Hochformat 9:16. Querformat Clips füllen das Bild, weil Scale full frame with crop eingestellt ist.", "Viewer in vertical 9:16. Horizontal clips fill the frame because Scale full frame with crop is set."],
+        [[60, 6, 4.7, 1.6], "Eigene Timeline Reel_v01 mit 1080 × 1920.", "A separate timeline Reel_v01 at 1080 × 1920."],
+        [[76.8, 13.6, 18.6, 4.6], "Zoom und Position X: Bildausschnitt setzen.", "Zoom and Position X: set the framing."],
+        [[76.6, 30.6, 23, 2.1], "AI Smart Reframe, nur Studio: Ausschnitt automatisch.", "AI Smart Reframe, Studio only: automatic framing."],
+        [[15.1, 66.5, 80, 9.9], "Dieselben Clips wie im Querformat, jeder wird neu gesetzt.", "The same clips as in the horizontal version, each one reframed."]
       ] }
     ]
   }
