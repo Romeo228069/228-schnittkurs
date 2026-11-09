@@ -1,7 +1,7 @@
 /* Tastenkappen, Escaping, Symbole, Datumsformat */
 const PREF_KEY = "228kurs-prefs";
 export const prefs = (() => {
-  let p = { os: /Win/.test(navigator.platform || "") ? "win" : "mac", lang: /^de/i.test(navigator.language || "de") ? "de" : "en" };
+  let p = { os: "win", lang: /^de/i.test(navigator.language || "de") ? "de" : "en" };
   try { Object.assign(p, JSON.parse(localStorage.getItem(PREF_KEY) || "{}")); } catch (e) {}
   return p;
 })();

@@ -1,6 +1,6 @@
 /* English course content. Keys match data.js (lesson ids l1 to l19, shortcuts by key@page). */
 export const MODS_EN = {
-  m0: { name: "Getting ready", desc: "What editing is, a tidy drive, setting up Resolve." },
+  m0: { name: "Background", desc: "What editing is, a tidy drive, setting up Resolve. For reference." },
   m1: { name: "Media", desc: "Create the project, bring in footage, build proxies." },
   m2: { name: "Edit", desc: "The heart of the course. This is where the film is made." },
   m3: { name: "Cut", desc: "The fast lane for short social clips." },
@@ -65,7 +65,7 @@ l2: { title: "Get organised before you start",
  tips: ["If you move or rename files after they are in Resolve, they turn red as Media Offline. Then right click in the Media Pool and choose Relink Selected Clips.", "Rule of thumb for backups: three copies, on two different drives, one of them in another place.", "Work from a fast SSD. On a slow hard drive even the best computer stutters."],
  romeo: "Show her your folder structure from a real client project. The key sentence: Resolve is an index, not a warehouse. Then let her rename a clip on purpose so she has seen Media Offline once and fixed it herself.",
  task: "Create the folder for your practice project with all six subfolders and copy 15 to 20 phone clips into 01_Footage.",
- quiz: { q: "What happens if you move a clip in the Finder after importing it?", a: ["Resolve finds it again automatically", "It shows up in Resolve as Media Offline", "It gets deleted from the project"], ok: 1, why: "Resolve only stores the path to the file. If that is wrong, the clip stays offline until you relink it." } },
+ quiz: { q: "What happens if you move a clip in Explorer or Finder after importing it?", a: ["Resolve finds it again automatically", "It shows up in Resolve as Media Offline", "It gets deleted from the project"], ok: 1, why: "Resolve only stores the path to the file. If that is wrong, the clip stays offline until you relink it." } },
 l3: { title: "Setting up Resolve",
  why: "Set a few options once and Resolve saves for you and plays back more smoothly.",
  steps: ["Download DaVinci Resolve for free from Blackmagic Design. The free version covers the whole course. The Studio version is a one time purchase and mainly adds AI tools, noise reduction and higher resolutions.", "Open DaVinci Resolve > Preferences > System > Media Storage and put your fastest drive first. Cache and stills go there.", "Under User > Project Save and Load turn on Live Save and Project Backups. Then no work is lost, even if Resolve crashes.", "Under User > UI Settings you set the language. Best keep it in English, because every tutorial uses the English names. This course uses them too.", "Restart Resolve once so everything takes effect."],

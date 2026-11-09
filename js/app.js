@@ -2,6 +2,7 @@
 import { MODS, SC, L, LEX } from "./data.js";
 import { MODS_EN, GROUPS_EN, SC_EN, L_EN, LEX_EN } from "./data_en.js";
 import { WIDGETS } from "./widgets.js";
+import { SHOTS, IMG } from "./shots.js";
 import { store, DELETE, union } from "./store.js";
 import { ACCOUNTS } from "./config.js";
 import { prefs, savePrefs, tt, caps, kbd, esc, T, CHECK, when, fmtMin } from "./util.js";
@@ -33,6 +34,12 @@ const TXT = ["title", "why", "steps", "tips", "task", "romeo", "quiz"];
 const META = ["keys", "min", "mod"];
 function mergeLesson(base, o) {
   const r = Object.assign({}, base, EN() && L_EN[base.id] ? L_EN[base.id] : {});
+  const S = SHOTS[base.id];
+  if (S) {
+    r.shots = S.shots;
+    for (const k of ["why", "steps", "tips"]) if (S[k]) r[k] = S[k][prefs.lang] || S[k].de;
+    if ("widget" in S) r.widget = S.widget;
+  }
   if (!o) return r;
   for (const k of META) if (o[k] !== undefined) r[k] = o[k];
   const lo = o[prefs.lang] || (base.custom ? o[EN() ? "de" : "en"] : null);
@@ -389,6 +396,7 @@ function renderLesson(id) {
   if (admin) h += '<div class="kstat" id="kstat"></div>';
   h += '<div class="lmeta"><span class="chip"><span class="clipsw"></span>' + esc(modTitle(m)) + '</span><span class="x">' + tt("Lektion " + l.n + " von " + list.length, "Lesson " + l.n + " of " + list.length) + '</span><span class="x">' + (+l.min || 0) + " Min</span>" + (l.hidden ? '<span class="x warnc">' + tt("für Kamila ausgeblendet", "hidden from Kamila") + "</span>" : "") + '<span class="x okc" id="donetag"></span></div>' +
     '<h1 class="ltitle">' + esc(l.title) + ".</h1>" + (l.why ? '<p class="lead">' + T(l.why) + "</p>" : "");
+  h += shotsHtml(l);
   if (l.widget && WIDGETS[l.widget]) h += '<div class="sec" id="wg"></div>';
   if (l.steps && l.steps.length) h += '<div class="sec"><span class="label">' + (l.rules ? tt("Die Regeln", "The rules") : tt("Schritt für Schritt", "Step by step")) + "</span>" + (l.rules ? '<ul class="rules">' : '<ol class="steps">') + l.steps.map(s => "<li><span>" + T(s) + "</span></li>").join("") + (l.rules ? "</ul>" : "</ol>") + "</div>";
   if (l.tips && l.tips.length) h += '<div class="sec"><span class="label">' + tt("Merken", "Remember") + '</span><ul class="tips">' + l.tips.map(s => "<li><span>" + T(s) + "</span></li>").join("") + "</ul></div>";
@@ -435,9 +443,67 @@ function renderLesson(id) {
     check: () => Object.keys(P().check || {}).map(Number),
     setCheck: (i, on) => learnerSet({ check: { [i]: on ? true : DELETE } }, null, id)
   });
+  bindShots(v);
   paintLesson();
   markRead(id);
 }
+
+/* ---------- Bildstrecken mit echten Screenshots ---------- */
+function shotsHtml(l) {
+  if (!l.shots || !l.shots.length) return "";
+  const lab = s => (s.title ? s.title[prefs.lang] || s.title.de : "");
+  return '<div class="sec shots">' + l.shots.map((s, si) => {
+    const [W, H] = IMG[s.img];
+    return '<figure class="shot" data-img="' + s.img + '">' +
+      '<figcaption class="label">' + T(lab(s)) + "</figcaption>" +
+      '<div class="shimg" style="aspect-ratio:' + W + "/" + H + '"><img src="img/' + s.img + '.jpg" width="' + W + '" height="' + H + '" alt="' + esc(lab(s).replace(/\[\[|\]\]/g, "")) + '"' + (si ? ' loading="lazy"' : "") + ">" +
+      s.spots.map((p, i) => '<button class="spot' + (i ? "" : " on") + '" data-i="' + i + '" style="left:' + p[0][0] + "%;top:" + p[0][1] + "%;width:" + p[0][2] + "%;height:" + p[0][3] + '%" aria-label="' + tt("Punkt ", "Point ") + (i + 1) + '"><b>' + (i + 1) + "</b></button>").join("") +
+      '<button class="shbig" aria-label="' + tt("Bild groß ansehen", "View image large") + '"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
+      '<div class="shdet"><div class="lens" aria-hidden="true"></div><ol class="shlist">' +
+      s.spots.map((p, i) => '<li><button data-i="' + i + '" aria-pressed="' + !i + '"><b>' + (i + 1) + "</b><span>" + T(EN() ? p[2] : p[1]) + "</span></button></li>").join("") +
+      "</ol></div></figure>";
+  }).join("") + "</div>";
+}
+function setSpot(fig, i) {
+  const s = findShot(fig); if (!s) return;
+  fig.querySelectorAll(".spot").forEach(b => b.classList.toggle("on", +b.dataset.i === i));
+  fig.querySelectorAll(".shlist button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.i === i)));
+  fig.dataset.on = String(i);
+  paintLens(fig);
+}
+function findShot(fig) { const l = findLesson(cur.id); if (!l || !l.shots) return null; return l.shots.find(s => s.img === fig.dataset.img) || null; }
+function paintLens(fig) {
+  const s = findShot(fig), lens = fig.querySelector(".lens"); if (!s || !lens) return;
+  const i = +(fig.dataset.on || 0), [x, y, w, h] = s.spots[i][0], [W, H] = IMG[s.img];
+  const bw = lens.clientWidth, bh = lens.clientHeight; if (!bw || !bh) return;
+  const pad = 1.35, rw = Math.max(w, 6) / 100 * W * pad, rh = Math.max(h, 6) / 100 * H * pad;
+  const sc = Math.min(bw / rw, bh / rh, 3);
+  const sw = W * sc, sh = H * sc, cx = (x + w / 2) / 100 * sw, cy = (y + h / 2) / 100 * sh;
+  lens.style.backgroundImage = "url(img/" + s.img + ".jpg)";
+  lens.style.backgroundSize = sw + "px " + sh + "px";
+  lens.style.backgroundPosition = (bw / 2 - cx) + "px " + (bh / 2 - cy) + "px";
+  lens.style.setProperty("--rx", (bw / 2 - w / 200 * sw) + "px"); lens.style.setProperty("--ry", (bh / 2 - h / 200 * sh) + "px");
+  lens.style.setProperty("--rw", (w / 100 * sw) + "px"); lens.style.setProperty("--rh", (h / 100 * sh) + "px");
+}
+function bindShots(v) {
+  v.querySelectorAll(".shot").forEach(fig => {
+    fig.querySelectorAll(".spot, .shlist button").forEach(b => b.addEventListener("click", () => setSpot(fig, +b.dataset.i)));
+    fig.querySelector(".shbig").addEventListener("click", () => openBig(fig.dataset.img));
+    const img = fig.querySelector("img"); if (img && !img.complete) img.addEventListener("load", () => paintLens(fig));
+    paintLens(fig);
+  });
+}
+function openBig(name) {
+  const [W, H] = IMG[name];
+  const ov = document.createElement("div"); ov.className = "bigov"; ov.setAttribute("role", "dialog");
+  ov.innerHTML = '<div class="bigbar"><span class="mute small">' + tt("Zum Vergrößern wischen oder scrollen", "Swipe or scroll to explore") + '</span><button class="btn sec" id="bigclose">' + tt("Schließen", "Close") + '</button></div><div class="bigscroll"><img src="img/' + name + '.jpg" width="' + W + '" height="' + H + '" alt=""></div>';
+  document.body.appendChild(ov); document.body.style.overflow = "hidden";
+  const close = () => { ov.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", esc_); };
+  const esc_ = e => { if (e.key === "Escape") close(); };
+  ov.querySelector("#bigclose").addEventListener("click", close); document.addEventListener("keydown", esc_);
+  ov.querySelector("#bigclose").focus();
+}
+window.addEventListener("resize", () => document.querySelectorAll(".shot").forEach(paintLens));
 function openedLesson(l) {
   const t = now();
   store.write("progress", { last: { id: l.id, at: t }, seen: { [l.id]: t }, active: t });

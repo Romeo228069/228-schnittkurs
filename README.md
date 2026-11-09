@@ -12,6 +12,10 @@ Romeo ist der Lehrer: er sieht Kamilas Stand live (abgeschlossene Lektionen, Üb
 
 Beim allerersten Besuch legt jede Person ihr eigenes Passwort fest (mindestens 6 Zeichen), danach bleibt man auf dem Gerät angemeldet.
 
+## Screenshots
+
+Die Bilder in `img/` sind echte Screenshots aus DaVinci Resolve Studio 21.1, aufgenommen im Demo-Projekt „228 Schnittkurs Demo“ mit neutralem, selbst erzeugtem Material (Ordner `20261109_Kamila_Demo` neben der Webseite). Kundenprojekte im Project Manager sind unkenntlich gemacht. Die klickbaren Punkte und Texte dazu stehen in `js/shots.js` (Koordinaten in Prozent). Resolve sieht unter Windows bis auf die Menüleiste gleich aus, die Tasten stehen standardmäßig auf Windows.
+
 ## Technik
 
 Statische Seite auf GitHub Pages, ohne Build. Daten liegen in Firebase (Projekt `schnittkurs`, Firestore in Frankfurt, Anmeldung per Passwort). Die Webkonfiguration in `js/config.js` ist öffentlich gedacht, geschützt wird über `firestore.rules`: nur die zwei Konten haben Zugriff, nur Romeo darf den Kurs ändern.

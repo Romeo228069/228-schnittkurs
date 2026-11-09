@@ -1,6 +1,5 @@
 /* Kursinhalte: Module, Shortcuts (geprüft am Handbuch DaVinci Resolve 21.1), Lektionen, Lexikon */
 export const MODS=[
- {id:"m0",name:"Vorbereitung",page:null,key:null,color:"#cdbb9b",desc:"Was Schnitt ist, Ordnung auf der Platte, Resolve einrichten."},
  {id:"m1",name:"Media",page:"Media",key:"shift+2",color:"#f08a2e",desc:"Projekt anlegen, Material holen, Proxys bauen."},
  {id:"m2",name:"Edit",page:"Edit",key:"shift+4",color:"#4f8fe0",desc:"Das Herz des Kurses. Hier entsteht der Film."},
  {id:"m3",name:"Cut",page:"Cut",key:"shift+3",color:"#34b2a6",desc:"Der Turbo für kurze Social Clips."},
@@ -8,6 +7,7 @@ export const MODS=[
  {id:"m5",name:"Color",page:"Color",key:"shift+6",color:"#e6c44a",desc:"Erst korrigieren, dann einen Look geben."},
  {id:"m6",name:"Fairlight",page:"Fairlight",key:"shift+7",color:"#5bb56d",desc:"Sprache klar, Musik darunter, Lautheit richtig."},
  {id:"m7",name:"Deliver",page:"Deliver",key:"shift+8",color:"#e66b9e",desc:"Aus der Timeline wird eine Datei."},
+ {id:"m0",name:"Hintergrund",page:null,key:null,color:"#cdbb9b",desc:"Was Schnitt ist, Ordnung auf der Platte, Resolve einrichten. Zum Nachlesen."},
  {id:"m8",name:"Abschluss",page:null,key:null,color:"#e8e8ed",desc:"Einmal alles am Stück, mit echtem Publikum."}
 ];
 
@@ -139,7 +139,7 @@ export const L=[
  keys:[],
  romeo:"Zeig ihr deine Ordnerstruktur aus einem echten Kundenprojekt. Der wichtigste Satz: Resolve ist ein Inhaltsverzeichnis, kein Lager. Lass sie danach absichtlich einen Clip umbenennen, damit sie Media Offline einmal gesehen und selbst repariert hat.",
  task:"Leg den Ordner für dein Übungsprojekt mit allen sechs Unterordnern an und kopiere 15 bis 20 Handyclips in 01_Footage.",
- quiz:{q:"Was passiert, wenn du einen Clip nach dem Import im Finder verschiebst?",a:["Resolve findet ihn automatisch wieder","Er erscheint in Resolve als Media Offline","Er wird aus dem Projekt gelöscht"],ok:1,why:"Resolve speichert nur den Pfad zur Datei. Stimmt der nicht mehr, ist der Clip offline, bis du ihn neu verknüpfst."}},
+ quiz:{q:"Was passiert, wenn du einen Clip nach dem Import im Explorer oder Finder verschiebst?",a:["Resolve findet ihn automatisch wieder","Er erscheint in Resolve als Media Offline","Er wird aus dem Projekt gelöscht"],ok:1,why:"Resolve speichert nur den Pfad zur Datei. Stimmt der nicht mehr, ist der Clip offline, bis du ihn neu verknüpfst."}},
 {mod:"m0",title:"Resolve einrichten",min:10,
  why:"Ein paar Einstellungen einmal richtig gesetzt, und Resolve speichert für dich mit und läuft flüssiger.",
  steps:["Lade DaVinci Resolve kostenlos bei Blackmagic Design herunter. Die Gratisversion reicht für den ganzen Kurs. Die Studio Version kostet einmalig und bringt vor allem Werkzeuge mit künstlicher Intelligenz, Rauschreduzierung und höhere Auflösungen.","Öffne DaVinci Resolve > Preferences > System > Media Storage und setz deine schnellste Festplatte an die erste Stelle. Dort landen Cache und Standbilder.","Unter User > Project Save and Load schaltest du Live Save und Project Backups ein. Dann geht keine Arbeit verloren, auch wenn Resolve abstürzt.","Unter User > UI Settings stellst du die Sprache ein. Lass sie am besten auf Englisch, weil jedes Tutorial die englischen Namen benutzt. Auch dieser Kurs nennt die englischen Namen.","Starte Resolve einmal neu, damit alles greift."],
