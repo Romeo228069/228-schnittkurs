@@ -84,11 +84,104 @@ function canWrite() {
   return true;
 }
 const now = () => Date.now();
+const dayKey = (d = new Date()) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 function learnerSet(patch, ev, lid) {
   if (!canWrite()) return;
-  store.write("progress", Object.assign({ active: now() }, patch));
+  const base = { active: now() };
+  if (me() === "kamila") base.days = { [dayKey()]: true };
+  store.write("progress", Object.assign(base, patch));
   if (ev && me() === "kamila") store.log(ev, lid);
 }
+
+/* ---------- Fragen und Kommentare ---------- */
+const GEN = "allg";
+const kindOf = m => m.k || "q";
+const threadOf = id => (NT().threads || {})[id] || [];
+function threadState(id) {
+  const th = threadOf(id);
+  const lastQ = Math.max(0, ...th.filter(m => m.f === "k" && kindOf(m) === "q").map(m => m.at));
+  const lastR = Math.max(0, ...th.filter(m => m.f === "r").map(m => m.at));
+  const closed = (NT().closed || {})[id] || 0;
+  const open = lastQ > 0 && lastQ > Math.max(lastR, closed);
+  return { open, answered: lastQ > 0 && !open, closed: closed && closed >= lastQ, last: th.length ? th[th.length - 1].at : 0, n: th.length };
+}
+function allThreads() { return Object.keys(NT().threads || {}).filter(id => threadOf(id).length && (id === GEN || lessonList(true).some(l => l.id === id))); }
+function threadLabel(id) {
+  if (id === GEN) return tt("Allgemein", "General");
+  const l = lessons().find(x => x.id === id) || lessonList(true).find(x => x.id === id);
+  return l ? tt("Lektion ", "Lesson ") + l.n + ": " + l.title : id;
+}
+function statusChip(id) {
+  const s = threadState(id);
+  if (!s.n) return "";
+  if (s.open) return '<span class="qst open">' + tt("Offen", "Open") + "</span>";
+  if (s.closed) return '<span class="qst done">' + tt("Erledigt", "Resolved") + "</span>";
+  if (s.answered) return '<span class="qst ok">' + tt("Beantwortet", "Answered") + "</span>";
+  return '<span class="qst">' + tt("Kommentar", "Comment") + "</span>";
+}
+function msgHtml(m) {
+  const who_ = m.f === "k" ? "Kamila" : "Romeo";
+  const kind = m.f === "k" ? (kindOf(m) === "c" ? tt("Kommentar", "Comment") : tt("Frage", "Question")) : tt("Antwort", "Reply");
+  return '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + who_ + " <em>" + kind + "</em> <time>" + when(m.at) + "</time></span>" + (m.ref ? '<span class="mref">' + T(m.ref) + "</span>" : "") + "<p>" + esc(m.t).replace(/\n/g, "<br>") + "</p></div>";
+}
+const qform = {}; // je Gespräch: { kind, ref }
+function threadFormHtml(id, compact) {
+  const st = qform[id] || (qform[id] = { kind: "q", ref: "" });
+  const admin = isAdmin();
+  return '<form class="msgf" data-tid="' + id + '">' +
+    (admin ? "" : '<div class="wbtns kindseg" role="group"><button type="button" data-kind="q" aria-pressed="' + (st.kind === "q") + '">' + tt("Frage", "Question") + '</button><button type="button" data-kind="c" aria-pressed="' + (st.kind === "c") + '">' + tt("Kommentar", "Comment") + "</button></div>") +
+    '<span class="refchip"' + (st.ref ? "" : " hidden") + "><span>" + T(st.ref) + '</span><button type="button" class="refx" aria-label="' + tt("Bezug entfernen", "Remove reference") + '">×</button></span>' +
+    '<div class="msgrow"><label class="fld"><span class="vh">' + tt("Nachricht", "Message") + '</span><textarea rows="' + (compact ? 1 : 2) + '" placeholder="' + (admin ? tt("Antwort an Kamila", "Reply to Kamila") : st.kind === "c" ? tt("Was möchtest du festhalten?", "What would you like to note?") : tt("Was ist unklar? Romeo antwortet hier", "What's unclear? Romeo replies here")) + '"></textarea></label><button class="btn sec" type="submit">' + tt("Senden", "Send") + "</button></div>" +
+    (admin && threadState(id).open ? '<button type="button" class="btn ghost qclose">' + tt("Als erledigt markieren", "Mark as resolved") + "</button>" : "") +
+    "</form>";
+}
+function sendMsg(id, t, kind, ref) {
+  if (!canWrite()) return false;
+  const f = me() === "romeo" ? "r" : "k";
+  const msg = { f, t, at: now() };
+  if (f === "k") msg.k = kind || "q";
+  if (ref) msg.ref = ref;
+  store.write("notes", { threads: { [id]: union(msg) }, read: { [f]: { [id]: now() } } });
+  if (f === "k") { learnerSet({}, null); store.log(kind === "c" ? "comment" : "msg", id === GEN ? null : id); }
+  return true;
+}
+function bindThreadForms(scope, after) {
+  scope.querySelectorAll("form.msgf").forEach(form => {
+    const id = form.dataset.tid, st = qform[id] || (qform[id] = { kind: "q", ref: "" });
+    form.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => {
+      st.kind = b.dataset.kind; form.querySelectorAll("[data-kind]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      form.querySelector("textarea").placeholder = st.kind === "c" ? tt("Was möchtest du festhalten?", "What would you like to note?") : tt("Was ist unklar? Romeo antwortet hier", "What's unclear? Romeo replies here");
+    }));
+    const rx = form.querySelector(".refx"); if (rx) rx.addEventListener("click", () => { st.ref = ""; form.querySelector(".refchip").hidden = true; });
+    const qc = form.querySelector(".qclose"); if (qc) qc.addEventListener("click", () => { store.write("notes", { closed: { [id]: now() } }); toast(tt("Als erledigt markiert.", "Marked as resolved.")); });
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const ta = form.querySelector("textarea"), t = ta.value.trim(); if (!t) return;
+      const tid = id === "new" ? (document.getElementById("qlesson") || {}).value || GEN : id;
+      if (!sendMsg(tid, t, st.kind, st.ref)) return;
+      ta.value = ""; st.ref = ""; const rc = form.querySelector(".refchip"); if (rc) rc.hidden = true;
+      toast(me() === "romeo" ? tt("Gesendet. Kamila sieht deine Antwort.", "Sent. Kamila can see your reply.") : st.kind === "c" ? tt("Kommentar gespeichert. Romeo sieht ihn.", "Comment saved. Romeo can see it.") : tt("Gesendet. Romeo sieht deine Frage.", "Sent. Romeo can see your question."));
+      if (after) after(tid);
+    });
+  });
+}
+function unreadTotal() {
+  const w = me(); if (!w) return 0;
+  if (w === "romeo") return allThreads().filter(id => threadState(id).open).length;
+  return allThreads().reduce((a, id) => a + unreadFor("kamila", id), 0);
+}
+
+/* ---------- Lernweg ---------- */
+const conf = id => ((P().conf || {})[id] || {}).v || 0;
+const journal = id => (P().journal || {})[id];
+function reviewList(list) { return list.filter(l => conf(l.id) === 1 || (quizRes(l.id) && !quizRes(l.id).ok && conf(l.id) !== 3)); }
+function daysHtml(n) {
+  const days = P().days || {}, out = [], t = new Date(); let cnt = 0;
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(t); d.setDate(t.getDate() - i); const k = dayKey(d), on = !!days[k]; if (on) cnt++; out.push('<i class="' + (on ? "on" : "") + (i === 0 ? " today" : "") + '" title="' + k + '"></i>'); }
+  return { html: '<div class="days" aria-label="' + tt("Lerntage der letzten vier Wochen", "Learning days in the last four weeks") + '">' + out.join("") + "</div>", count: cnt, total: Object.keys(days).length };
+}
+const CONF = () => [[3, tt("Sitzt", "Got it")], [2, tt("Geht so", "So so")], [1, tt("Unsicher", "Unsure")]];
+function confChip(v) { const c = CONF().find(x => x[0] === v); return c ? '<span class="conf c' + v + '">' + c[1] + "</span>" : ""; }
 
 /* ---------- Kleine Helfer ---------- */
 function toast(msg) {
@@ -201,7 +294,7 @@ function renderShell() {
     '<header class="top"><div class="wrap topin">' +
     '<button class="brand" id="brand" aria-label="' + tt("Zur Startseite", "Home") + '">' + MARK + '<span class="bt">' + tt("Schnittkurs", "Editing course") + "</span></button>" +
     '<nav class="nav" aria-label="' + tt("Bereiche", "Sections") + '"><div class="seg" id="navseg" role="group"><span class="ind" aria-hidden="true"></span>' +
-    '<button data-v="kurs" aria-pressed="true">' + (me() === "romeo" ? "Kamila" : tt("Kurs", "Course")) + '</button><button data-v="shortcuts" aria-pressed="false">Shortcuts</button><button data-v="lexikon" aria-pressed="false">' + tt("Lexikon", "Glossary") + "</button></div></nav>" +
+    '<button data-v="kurs" aria-pressed="true">' + (me() === "romeo" ? "Kamila" : tt("Kurs", "Course")) + '</button><button data-v="fragen" aria-pressed="false">' + tt("Fragen", "Q&amp;A") + '<b class="nb" id="navbadge" hidden></b></button><button data-v="shortcuts" aria-pressed="false"><span class="lg">Shortcuts</span><span class="sm">' + tt("Tasten", "Keys") + '</span></button><button data-v="lexikon" aria-pressed="false">' + tt("Lexikon", "Glossary") + "</button></div></nav>" +
     '<div class="tools">' + langSeg("langseg") +
     '<div class="ring" title="' + tt("Kamilas Fortschritt", "Kamila's progress") + '"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="bgc" cx="20" cy="20" r="16"/><circle class="fgc" id="ringc" cx="20" cy="20" r="16" stroke-dasharray="100.53" stroke-dashoffset="100.53"/></svg><span id="ringt" class="num">0/0</span></div>' +
     '<div class="ub"><button class="avatar" id="avatar" aria-haspopup="true" aria-expanded="false" aria-label="' + u.name + '" style="--mc:' + (me() === "romeo" ? "#e6c44a" : "#4f8fe0") + '">' + u.name[0] + '<i class="sync" id="syncdot"></i></button>' +
@@ -245,6 +338,8 @@ function updRing() {
   if (!c) return;
   c.style.strokeDashoffset = String(100.53 * (1 - (list.length ? d / list.length : 0)));
   document.getElementById("ringt").textContent = d + "/" + list.length;
+  const nb = document.getElementById("navbadge"), u = viewAs ? 0 : unreadTotal();
+  if (nb) { nb.hidden = !u; nb.textContent = u; }
 }
 
 /* ---------- Navigation ---------- */
@@ -258,6 +353,7 @@ function route(keepScroll) {
   if (m && findLesson(m[1])) { if (editing && editing !== m[1]) editing = null; renderLesson(m[1]); }
   else if (h === "shortcuts") { v = "shortcuts"; renderShortcuts(); }
   else if (h === "lexikon") { v = "lexikon"; renderLexikon(); }
+  else if (h === "fragen") { v = "fragen"; renderFragen(); }
   else { editing = null; renderHome(); }
   setSeg(document.getElementById("navseg"), "v", v);
   window.scrollTo(0, keepScroll === true ? y : 0);
@@ -268,6 +364,7 @@ function rerender() {
   if (cur.view === "lesson" && findLesson(cur.id)) renderLesson(cur.id);
   else if (cur.view === "shortcuts") renderShortcuts(true);
   else if (cur.view === "lexikon") renderLexikon();
+  else if (cur.view === "fragen") renderFragen();
   else renderHome();
   window.scrollTo(0, y);
 }
@@ -323,22 +420,38 @@ function renderHome() {
   const list = visible(), nx = nextOf(list), la = lastOpened(list), all = !nx;
   const resume = la && !isDone(la.id) ? la : nx;
   const left = list.filter(l => !isDone(l.id)).reduce((a, l) => a + (+l.min || 0), 0);
-  const msgs = list.filter(l => unreadFor("kamila", l.id));
+  const msgs = allThreads().filter(id => unreadFor("kamila", id));
   const doneN = list.filter(l => isDone(l.id)).length;
   let h = '<section class="hero"><span class="label">' + tt("DaVinci Resolve 21 für Einsteiger", "DaVinci Resolve 21 for beginners") + "</span><h1>" + tt("Kamila lernt<br>schneiden.", "Kamila learns<br>to edit.") + "</h1>" +
     "<p>" + tt(list.length + " Lektionen vom leeren Ordner bis zum fertigen Export, Seite für Seite durch Resolve. Romeo erklärt, du probierst aus, und hier schlägst du später alles nach.", list.length + " lessons from an empty folder to the finished export, page by page through Resolve. Romeo explains, you try it out, and later you look everything up here.") + "</p></section>";
-  if (msgs.length) h += '<div class="cont msgcard"><div class="ct"><span class="label">' + tt("Romeo hat dir geschrieben", "Romeo wrote to you") + "</span><b>" + msgs.map(l => tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title)).join(", ") + '</b></div><button class="btn sec" data-go="lektion-' + msgs[0].id + '">' + tt("Lesen", "Read") + "</button></div>";
+  if (msgs.length) h += '<div class="cont msgcard"><div class="ct"><span class="label">' + tt("Romeo hat dir geantwortet", "Romeo replied to you") + "</span><b>" + msgs.map(id => esc(threadLabel(id))).join(", ") + '</b></div><button class="btn sec" data-go="fragen">' + tt("Lesen", "Read") + "</button></div>";
   const lab = all ? tt("Alles geschafft", "All done") : la && resume === la ? tt("Weiter, wo du warst", "Pick up where you left off") : doneN ? tt("Weiter mit", "Continue with") : tt("Los geht es mit", "Start with");
   h += '<div class="cont"><div class="ct"><span class="label">' + lab + "</span><b>" + (all ? tt("Alle Lektionen abgeschlossen. Zeit für den nächsten Film.", "All lessons completed. Time for the next film.") : tt("Lektion ", "Lesson ") + resume.n + ": " + esc(resume.title)) + '</b><span class="mute num">' + tt(doneN + " von " + list.length + " abgeschlossen", doneN + " of " + list.length + " completed") + (left ? tt(", noch rund ", ", about ") + fmtMin(left) + tt("", " to go") : "") + (la ? tt(". Zuletzt geöffnet ", ". Last opened ") + when(P().last.at) : "") + "</span></div>" +
     '<button class="btn pri" data-go="lektion-' + (all ? list[list.length - 1].id : resume.id) + '">' + (all ? tt("Abschluss ansehen", "See the final lesson") : tt("Lektion starten", "Start lesson")) + "</button></div>";
+  h += lernwegHtml(list, false);
   h += timelineHtml(list, all ? null : resume.id, tt("Dein Kurs als Timeline", "Your course as a timeline"));
   h += modulesHtml(list, all ? null : resume.id);
   v.innerHTML = h; bindCommon(); updRing();
 }
+function lernwegHtml(list, admin) {
+  const d = daysHtml(28), rev = reviewList(list);
+  const js = list.filter(l => journal(l.id)).sort((a, b) => journal(b.id).at - journal(a.id).at);
+  const cs = [3, 2, 1].map(v => list.filter(l => conf(l.id) === v).length);
+  const openQ = allThreads().filter(id => threadState(id).open).length;
+  const who_ = admin ? tt("Kamilas", "Kamila's") : tt("Dein", "Your");
+  return '<section class="lw" aria-label="' + tt("Lernweg", "Learning path") + '"><div class="lwhead"><span class="label">' + who_ + tt(" Lernweg", " learning path") + '</span><span class="mute small num">' +
+    tt(d.total + (d.total === 1 ? " Lerntag" : " Lerntage") + ", davon " + d.count + " in den letzten 4 Wochen", d.total + (d.total === 1 ? " learning day" : " learning days") + ", " + d.count + " in the last 4 weeks") + "</span></div>" + d.html +
+    '<div class="lwstats num"><span>' + confChip(3) + " " + cs[0] + "</span><span>" + confChip(2) + " " + cs[1] + "</span><span>" + confChip(1) + " " + cs[2] + '</span><button class="lwq" data-go="fragen">' + tt(openQ + (openQ === 1 ? " offene Frage" : " offene Fragen"), openQ + (openQ === 1 ? " open question" : " open questions")) + "</button></div>" +
+    '<div class="lwcols"><div><span class="label">' + tt("Zum Wiederholen", "To review") + "</span>" +
+    (rev.length ? '<div class="evl">' + rev.map(l => '<button class="evr" data-go="lektion-' + l.id + '"><span>' + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + "<small>" + (conf(l.id) === 1 ? tt("als unsicher markiert", "marked as unsure") : tt("Check beim ersten Versuch falsch", "check wrong the first time")) + "</small></span>" + confChip(conf(l.id)) + "</button>").join("") + "</div>" : '<p class="mute small">' + (admin ? tt("Nichts offen.", "Nothing open.") : tt("Nichts offen. Wenn du dich in einer Lektion unsicher fühlst, markier es dort, dann taucht sie hier auf.", "Nothing open. If you feel unsure in a lesson, mark it there and it shows up here.")) + "</p>") +
+    '</div><div><span class="label">' + tt("Notizen", "Notes") + "</span>" +
+    (js.length ? '<div class="evl">' + js.slice(0, admin ? 50 : 4).map(l => '<button class="evr jn" data-go="lektion-' + l.id + '"><span>' + esc(journal(l.id).t) + "<small>" + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + ", " + when(journal(l.id).at) + "</small></span></button>").join("") + "</div>" : '<p class="mute small">' + (admin ? tt("Noch keine Notizen.", "No notes yet.") : tt("Am Ende jeder Lektion kannst du festhalten, was du mitnimmst.", "At the end of each lesson you can note what you take away.")) + "</p>") +
+    "</div></div></section>";
+}
 
 function evText(e, l) {
   const n = l ? l.n : "?", s = e.s != null ? e.s : "?";
-  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: ["hat dir zu Lektion " + n + " geschrieben", "wrote to you about lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
+  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: [l ? "hat eine Frage zu Lektion " + n + " gestellt" : "hat eine allgemeine Frage gestellt", l ? "asked a question about lesson " + n : "asked a general question"], comment: [l ? "hat Lektion " + n + " kommentiert" : "hat einen Kommentar geschrieben", l ? "commented on lesson " + n : "wrote a comment"], conf: ["hat Lektion " + n + " als " + (["", "unsicher", "geht so", "sitzt"][e.v || 0] || "") + " eingeschätzt", "rated lesson " + n + " as " + (["", "unsure", "so so", "got it"][e.v || 0] || "")], journal: ["hat eine Notiz zu Lektion " + n + " geschrieben", "wrote a note on lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
   return D ? tt(D[0], D[1]) : e.type;
 }
 function dashboardHtml() {
@@ -347,7 +460,7 @@ function dashboardHtml() {
   const qs = vis.map(l => quizRes(l.id)).filter(Boolean), qok = qs.filter(q => q.ok).length;
   const exs = vis.filter(l => exDone(l.id)).length;
   const chk = Object.keys(p.check || {}).length, tr = p.trainer;
-  const unread = all.filter(l => unreadFor("romeo", l.id));
+  const unread = allThreads().filter(id => threadState(id).open || unreadFor("romeo", id));
   const of = tt(" von ", " of ");
   let h = '<section class="phead"><span class="label">' + tt("Lehreransicht", "Teacher view") + "</span><h1>" + tt("Kamilas Stand.", "Kamila's progress.") + "</h1><p>" +
     (p.active ? tt(done + " von " + vis.length + " Lektionen abgeschlossen. Zuletzt aktiv " + when(p.active), done + " of " + vis.length + " lessons completed. Last active " + when(p.active)) + (la ? tt(", zuletzt geöffnet hat sie Lektion " + la.n + ": ", ", the last lesson she opened is " + la.n + ": ") + esc(la.title) + "." : ".")
@@ -362,11 +475,12 @@ function dashboardHtml() {
     "<div><dt>" + tt("Zuletzt aktiv", "Last active") + "</dt><dd>" + (p.active ? when(p.active) : tt("noch nie", "never")) + "</dd></div></dl>" +
     MODS.map(m => { const ls = vis.filter(l => l.mod === m.id); if (!ls.length) return ""; const d = ls.filter(l => isDone(l.id)).length; return '<div class="mbar" style="--mc:' + m.color + '"><span>' + esc(modName(m)) + '</span><span class="mb"><i style="width:' + (d / ls.length * 100) + '%"></i></span><span class="num">' + d + "/" + ls.length + "</span></div>"; }).join("") +
     "</section><section>" +
-    '<span class="label">' + tt("Nachrichten von Kamila", "Messages from Kamila") + "</span>" +
-    (unread.length ? '<div class="evl">' + unread.map(l => '<button class="evr unread" data-go="lektion-' + l.id + '"><span>' + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + '</span><b class="dot">' + unreadFor("romeo", l.id) + "</b></button>").join("") + "</div>" : '<p class="mute small">' + tt("Keine offenen Fragen.", "No open questions.") + "</p>") +
+    '<span class="label">' + tt("Fragen von Kamila", "Questions from Kamila") + "</span>" +
+    (unread.length ? '<div class="evl">' + unread.map(id => '<button class="evr unread" data-go="fragen"><span>' + esc(threadLabel(id)) + "</span>" + statusChip(id) + (unreadFor("romeo", id) ? '<b class="dot">' + unreadFor("romeo", id) + "</b>" : "") + "</button>").join("") + "</div>" : '<p class="mute small">' + tt("Keine offenen Fragen.", "No open questions.") + "</p>") +
     '<span class="label" style="margin-top:22px">' + tt("Verlauf", "Activity") + "</span>" +
     (store.state.events.length ? '<div class="evl">' + store.state.events.slice(0, 14).map(e => { const l = e.lid ? all.find(x => x.id === e.lid) : null; return '<button class="evr"' + (l ? ' data-go="lektion-' + l.id + '"' : "") + "><span>Kamila " + evText(e, l) + (l ? "<small>" + esc(l.title) + "</small>" : "") + '</span><time class="mute small">' + when(e.t) + "</time></button>"; }).join("") + "</div>" : '<p class="mute small">' + tt("Noch keine Einträge.", "No entries yet.") + "</p>") +
     "</section></div>";
+  h += lernwegHtml(vis, true);
   h += '<section class="phead" style="padding-top:40px"><span class="label">' + tt("Kurs anpassen", "Adapt the course") + '</span><h2 class="h2">' + tt("Lektionen bearbeiten.", "Edit lessons.") + "</h2><p>" + tt("Tipp eine Lektion an, um sie zu ändern, für Kamila auszublenden oder ihr zu schreiben. Ü heißt Übung gemacht, C zeigt den ersten Check in Grün oder Rot.", "Tap a lesson to change it, hide it from Kamila or write to her. E means exercise done, C shows the first check in green or red.") + "</p></section>";
   h += modulesHtml(all, la ? la.id : null);
   h += '<div class="danger"><span id="resetbox"><button class="btn ghost" id="reset">' + tt("Kamilas Fortschritt zurücksetzen", "Reset Kamila's progress") + "</button></span></div>";
@@ -379,7 +493,7 @@ function bindDashboard() {
     const t = e.target.closest("button"); if (!t) return;
     if (t.id === "reset") rb.innerHTML = '<span class="confirm"><span>' + tt("Kamilas ganzen Fortschritt löschen?", "Delete all of Kamila's progress?") + '</span><button class="btn sec" id="rno">' + tt("Abbrechen", "Cancel") + '</button><button class="btn pri" id="ryes">' + tt("Ja, löschen", "Yes, delete") + "</button></span>";
     else if (t.id === "rno") rb.innerHTML = plain();
-    else if (t.id === "ryes") { store.write("progress", { done: DELETE, ex: DELETE, quiz: DELETE, check: DELETE, seen: DELETE, last: DELETE, trainer: DELETE, active: DELETE }); toast(tt("Kamilas Fortschritt ist zurückgesetzt.", "Kamila's progress has been reset.")); }
+    else if (t.id === "ryes") { store.write("progress", { done: DELETE, ex: DELETE, quiz: DELETE, check: DELETE, seen: DELETE, last: DELETE, trainer: DELETE, active: DELETE, conf: DELETE, journal: DELETE, days: DELETE }); toast(tt("Kamilas Fortschritt ist zurückgesetzt.", "Kamila's progress has been reset.")); }
   });
 }
 
@@ -405,8 +519,10 @@ function renderLesson(id) {
   if (admin && l.romeo) h += '<div class="sec romeo"><span class="label">' + tt("Für dich, so erklärst du es", "For you, how to explain it") + "</span><p>" + T(l.romeo) + "</p></div>";
   if (l.task) h += '<div class="sec task"><span class="label">' + tt("Übung", "Exercise") + "</span><p>" + T(l.task) + '</p><button class="chk" role="checkbox" aria-checked="false" id="exchk"' + (admin ? " disabled" : "") + '><span class="bx">' + CHECK + "</span>" + (admin ? tt("Kamila hat die Übung gemacht", "Kamila did the exercise") : tt("Übung gemacht", "Exercise done")) + "</button></div>";
   if (l.quiz && l.quiz.q) h += '<div class="sec quiz" id="quiz"><span class="label">Check</span><p class="q">' + T(l.quiz.q) + "</p>" + l.quiz.a.map((a, i) => '<button class="qopt" data-i="' + i + '"' + (admin ? " disabled" : "") + '><span class="ltr">' + "ABC"[i] + "</span><span>" + T(a) + "</span></button>").join("") + '<p class="qwhy" id="qwhy" hidden></p></div>';
-  h += '<div class="sec thread" id="thread"><span class="label">' + (admin ? tt("Gespräch mit Kamila", "Conversation with Kamila") : tt("Frage an Romeo", "Ask Romeo")) + '</span><div class="msgs" id="msgs"></div>' +
-    '<form class="msgf" id="msgf"><label class="fld"><span class="vh">' + tt("Nachricht", "Message") + '</span><textarea id="msgt" rows="2" placeholder="' + (admin ? tt("Antwort oder Hinweis an Kamila", "Reply or note to Kamila") : tt("Was ist unklar? Romeo antwortet hier", "What's unclear? Romeo replies here")) + '"></textarea></label><button class="btn sec" type="submit">' + tt("Senden", "Send") + "</button></form></div>";
+  if (!admin) h += '<div class="sec reflect" id="reflect"><span class="label">' + tt("Wie sicher fühlst du dich?", "How confident do you feel?") + '</span><div class="wbtns confseg" role="group">' + CONF().map(c => '<button type="button" data-conf="' + c[0] + '" aria-pressed="false">' + c[1] + "</button>").join("") + "</div>" +
+    '<label class="fld"><span>' + tt("Deine Notiz zur Lektion", "Your note on this lesson") + " <em>" + tt("Romeo sieht sie", "Romeo can see it") + '</em></span><textarea id="jt" rows="2" placeholder="' + tt("Was nimmst du mit? Was war schwer?", "What do you take away? What was hard?") + '"></textarea></label>' +
+    '<div class="jrow"><button type="button" class="btn sec" id="jsave">' + tt("Notiz speichern", "Save note") + '</button><span class="mute small" id="jstate"></span></div></div>';
+  h += '<div class="sec thread" id="thread"><div class="thead"><span class="label">' + (admin ? tt("Fragen und Kommentare von Kamila", "Questions and comments from Kamila") : tt("Frage oder Kommentar an Romeo", "Question or comment for Romeo")) + '</span><span id="qstatus"></span></div><div class="msgs" id="msgs"></div>' + threadFormHtml(id) + "</div>";
   h += '<div class="finish">' + (admin ? '<button class="chk" role="checkbox" aria-checked="false" id="donebtn"><span class="bx">' + CHECK + "</span>" + tt("Für Kamila als abgeschlossen markieren", "Mark as completed for Kamila") + "</button>" : '<button class="btn pri" id="donebtn">' + tt("Lektion abschließen", "Complete lesson") + "</button>") +
     '<div class="pn"><button ' + (prev ? 'data-go="lektion-' + prev.id + '"' : "disabled") + "><small>" + tt("Zurück", "Back") + "</small><span>" + (prev ? esc(prev.title) : "") + "</span></button><button " + (next ? 'data-go="lektion-' + next.id + '"' : 'data-go="kurs"') + "><small>" + (next ? tt("Weiter", "Next") : tt("Fertig", "Done")) + "</small><span>" + (next ? esc(next.title) : tt("Zur Übersicht", "To the overview")) + "</span></button></div></div></div>";
   v.innerHTML = h; bindCommon(); updRing();
@@ -428,16 +544,24 @@ function renderLesson(id) {
     if (!quizRes(id) && canWrite()) learnerSet({ quiz: { [id]: { ok, at: now(), pick: i } } }, ok ? "quiz_ok" : "quiz_bad", id);
     showQuiz(l, i);
   }));
-  document.getElementById("msgf").addEventListener("submit", e => {
-    e.preventDefault();
-    const ta = document.getElementById("msgt"), t = ta.value.trim(); if (!t) return;
-    if (!canWrite()) return;
-    const f = me() === "romeo" ? "r" : "k";
-    store.write("notes", { threads: { [id]: union({ f, t, at: now() }) }, read: { [f]: { [id]: now() } } });
-    if (f === "k") store.log("msg", id);
-    ta.value = ""; paintThread(l);
-    toast(f === "k" ? tt("Gesendet. Romeo sieht deine Frage.", "Sent. Romeo can see your question.") : tt("Gesendet. Kamila sieht deine Nachricht.", "Sent. Kamila can see your message."));
-  });
+  bindThreadForms(v, () => paintThread(l));
+  const rf = document.getElementById("reflect");
+  if (rf) {
+    rf.querySelectorAll("[data-conf]").forEach(b => b.addEventListener("click", () => {
+      const val = +b.dataset.conf, on = conf(id) !== val;
+      if (!canWrite()) return;
+      learnerSet({ conf: { [id]: on ? { v: val, at: now() } : DELETE } }, null, id);
+      if (on && me() === "kamila") store.log("conf", id, { v: val });
+      paintLesson();
+    }));
+    document.getElementById("jsave").addEventListener("click", () => {
+      const t = document.getElementById("jt").value.trim();
+      if (!canWrite()) return;
+      learnerSet({ journal: { [id]: t ? { t, at: now() } : DELETE } }, null, id);
+      if (t && me() === "kamila") store.log("journal", id);
+      document.getElementById("jstate").textContent = t ? tt("Gespeichert", "Saved") : tt("Notiz gelöscht", "Note removed");
+    });
+  }
   if (l.widget && WIDGETS[l.widget]) WIDGETS[l.widget](document.getElementById("wg"), l, {
     readonly: admin,
     check: () => Object.keys(P().check || {}).map(Number),
@@ -461,7 +585,7 @@ function shotsHtml(l) {
       '<button class="shbig" aria-label="' + tt("Bild groß ansehen", "View image large") + '"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       '<div class="shdet"><div class="lens" aria-hidden="true"></div><ol class="shlist">' +
       s.spots.map((p, i) => '<li><button data-i="' + i + '" aria-pressed="' + !i + '"><b>' + (i + 1) + "</b><span>" + T(EN() ? p[2] : p[1]) + "</span></button></li>").join("") +
-      "</ol></div></figure>";
+      "</ol>" + (isAdmin() ? "" : '<button class="btn ghost askspot" type="button">' + tt("Frage zu diesem Punkt stellen", "Ask about this point") + "</button>") + "</div></figure>";
   }).join("") + "</div>";
 }
 function setSpot(fig, i) {
@@ -489,6 +613,16 @@ function bindShots(v) {
   v.querySelectorAll(".shot").forEach(fig => {
     fig.querySelectorAll(".spot, .shlist button").forEach(b => b.addEventListener("click", () => setSpot(fig, +b.dataset.i)));
     fig.querySelector(".shbig").addEventListener("click", () => openBig(fig.dataset.img));
+    const ask = fig.querySelector(".askspot");
+    if (ask) ask.addEventListener("click", () => {
+      const s = findShot(fig); if (!s) return;
+      const i = +(fig.dataset.on || 0), title = s.title ? s.title[prefs.lang] || s.title.de : "";
+      const st = qform[cur.id] || (qform[cur.id] = { kind: "q", ref: "" });
+      st.ref = title + tt(", Punkt ", ", point ") + (i + 1);
+      const form = document.querySelector('#thread form.msgf'); if (!form) return;
+      const rc = form.querySelector(".refchip"); rc.hidden = false; rc.querySelector("span").innerHTML = T(st.ref);
+      form.scrollIntoView({ block: "center" }); form.querySelector("textarea").focus();
+    });
     const img = fig.querySelector("img"); if (img && !img.complete) img.addEventListener("load", () => paintLens(fig));
     paintLens(fig);
   });
@@ -522,9 +656,12 @@ function showQuiz(l, pick) {
 }
 function paintThread(l) {
   const box = document.getElementById("msgs"); if (!box) return;
-  const th = (NT().threads || {})[l.id] || [];
-  box.innerHTML = th.length ? th.map(m => '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + (m.f === "k" ? "Kamila" : "Romeo") + " <time>" + when(m.at) + "</time></span><p>" + esc(m.t).replace(/\n/g, "<br>") + "</p></div>").join("") :
-    '<p class="mute small">' + (isAdmin() ? tt("Noch keine Nachrichten zu dieser Lektion.", "No messages about this lesson yet.") : tt("Wenn etwas unklar ist, schreib es hier hin. Romeo antwortet an dieser Stelle.", "If something is unclear, write it here. Romeo replies right here.")) + "</p>";
+  const th = threadOf(l.id);
+  box.innerHTML = th.length ? th.map(msgHtml).join("") :
+    '<p class="mute small">' + (isAdmin() ? tt("Noch keine Nachrichten zu dieser Lektion.", "No messages about this lesson yet.") : tt("Wenn etwas unklar ist, schreib es hier hin. Zu einem Bildpunkt fragst du direkt beim Bild.", "If something is unclear, write it here. To ask about a point in a picture, use the button next to the picture.")) + "</p>";
+  const qs = document.getElementById("qstatus"); if (qs) qs.innerHTML = statusChip(l.id);
+  const form = document.querySelector("#thread form.msgf");
+  if (form && isAdmin()) { const has = !!form.querySelector(".qclose"); if (has !== threadState(l.id).open) { form.outerHTML = threadFormHtml(l.id); bindThreadForms(document.getElementById("thread"), () => paintThread(l)); } }
 }
 function paintLesson() {
   if (cur.view !== "lesson") return;
@@ -549,7 +686,16 @@ function paintLesson() {
       "<div><dt>Status</dt><dd>" + (d ? tt("abgeschlossen ", "completed ") + when(p.done[l.id]) : seen ? tt("angefangen", "started") : tt("noch nicht geöffnet", "not opened yet")) + "</dd></div>" +
       "<div><dt>" + tt("Zuletzt geöffnet", "Last opened") + "</dt><dd>" + (seen ? when(seen) : tt("noch nie", "never")) + "</dd></div>" +
       "<div><dt>" + tt("Übung", "Exercise") + "</dt><dd>" + (exDone(l.id) ? tt("gemacht ", "done ") + when(p.ex[l.id]) : tt("offen", "open")) + "</dd></div>" +
-      "<div><dt>Check</dt><dd>" + (q ? (q.ok ? tt("beim ersten Versuch richtig", "right first time") : tt("beim ersten Versuch falsch", "wrong first time")) : tt("offen", "open")) + "</dd></div></dl>";
+      "<div><dt>Check</dt><dd>" + (q ? (q.ok ? tt("beim ersten Versuch richtig", "right first time") : tt("beim ersten Versuch falsch", "wrong first time")) : tt("offen", "open")) + "</dd></div>" +
+      "<div><dt>" + tt("Selbsteinschätzung", "Self assessment") + "</dt><dd>" + (conf(l.id) ? confChip(conf(l.id)) : tt("offen", "open")) + "</dd></div></dl>" +
+      (journal(l.id) ? '<p class="jnote"><span class="label">' + tt("Ihre Notiz", "Her note") + "</span>" + esc(journal(l.id).t) + ' <span class="mute small">' + when(journal(l.id).at) + "</span></p>" : "");
+  }
+  const rf = document.getElementById("reflect");
+  if (rf) {
+    rf.querySelectorAll("[data-conf]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.conf === conf(l.id))));
+    const jt = document.getElementById("jt"), jn = journal(l.id);
+    if (jt && document.activeElement !== jt && !jt.dataset.touched) jt.value = jn ? jn.t : "";
+    if (jt && !jt.dataset.bound) { jt.dataset.bound = "1"; jt.addEventListener("input", () => { jt.dataset.touched = "1"; }); }
   }
   paintThread(l);
   if (l.widget === "checklist" && WIDGETS.checklist.refresh) WIDGETS.checklist.refresh();
@@ -687,6 +833,28 @@ function trainer(old) {
   rend();
 }
 
+/* ---------- Fragen-Seite ---------- */
+let QF = "open";
+function renderFragen() {
+  cur = { view: "fragen", id: null };
+  const v = document.getElementById("view"), admin = isAdmin();
+  const ids = allThreads().sort((a, b) => threadState(b).last - threadState(a).last);
+  const openN = ids.filter(id => threadState(id).open).length;
+  const shown = QF === "open" ? ids.filter(id => threadState(id).open || unreadFor(admin ? "romeo" : "kamila", id)) : ids;
+  const opts = '<option value="' + GEN + '">' + tt("Allgemein", "General") + "</option>" + visible().map(l => '<option value="' + l.id + '">' + esc(tt("Lektion ", "Lesson ") + l.n + ": " + l.title) + "</option>").join("");
+  let h = '<section class="phead"><span class="label">' + tt("Fragen und Kommentare", "Questions and comments") + "</span><h1>" + (admin ? tt("Kamilas Fragen.", "Kamila's questions.") : tt("Frag Romeo.", "Ask Romeo.")) + "</h1><p>" +
+    (admin ? tt(openN + (openN === 1 ? " Frage ist offen." : " Fragen sind offen.") + " Antworte direkt hier oder in der Lektion. Erledigt schließt eine Frage, bis Kamila nachfragt.", openN + (openN === 1 ? " question is open." : " questions are open.") + " Reply right here or in the lesson. Resolved closes a question until Kamila asks again.")
+      : tt("Frag alles, was unklar ist, oder halte einen Gedanken als Kommentar fest. Romeo antwortet hier und in der Lektion. Zu einem Bildpunkt fragst du am besten direkt beim Bild.", "Ask anything that's unclear, or keep a thought as a comment. Romeo replies here and in the lesson. To ask about a point in a picture, use the button next to the picture.")) + "</p></section>";
+  if (!admin) h += '<section class="qnew"><label class="fld"><span>' + tt("Wozu?", "About what?") + '</span><select id="qlesson">' + opts + "</select></label>" + threadFormHtml("new") + "</section>";
+  h += '<div class="qbar"><div class="wbtns" role="group"><button data-qf="open" aria-pressed="' + (QF === "open") + '">' + tt("Offen und neu", "Open and new") + '</button><button data-qf="all" aria-pressed="' + (QF === "all") + '">' + tt("Alle", "All") + " " + ids.length + "</button></div></div>";
+  h += shown.length ? '<div class="qlist">' + shown.map(id => '<section class="qthread" data-id="' + id + '"><div class="thead"><button class="qlink" ' + (id === GEN ? "" : 'data-go="lektion-' + id + '"') + ">" + esc(threadLabel(id)) + "</button>" + statusChip(id) + '</div><div class="msgs">' + threadOf(id).map(msgHtml).join("") + "</div>" + threadFormHtml(id, true) + "</section>").join("") + "</div>"
+    : '<p class="empty">' + (QF === "open" ? (admin ? tt("Keine offenen Fragen. Unter Alle findest du jedes Gespräch.", "No open questions. All shows every conversation.") : tt("Nichts offen. Unter Alle findest du jedes Gespräch mit Romeo.", "Nothing open. All shows every conversation with Romeo.")) : tt("Noch keine Fragen oder Kommentare.", "No questions or comments yet.")) + "</p>";
+  v.innerHTML = h; bindCommon(); updRing();
+  v.querySelectorAll("[data-qf]").forEach(b => b.addEventListener("click", () => { QF = b.dataset.qf; renderFragen(); }));
+  bindThreadForms(v, () => renderFragen());
+  shown.forEach(id => markRead(id));
+}
+
 /* ---------- Lexikon ---------- */
 function renderLexikon() {
   cur = { view: "lexikon", id: null };
@@ -707,6 +875,7 @@ store.onChange(kind => {
     updRing(); paintStatus();
     const focus = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
     if (cur.view === "home") { if (!focus) { const y = window.scrollY; renderHome(); window.scrollTo(0, y); } }
+    else if (cur.view === "fragen") { if (!focus && (kind === "notes" || kind === "all" || kind === "course")) { const y = window.scrollY; renderFragen(); window.scrollTo(0, y); } }
     else if (cur.view === "lesson") {
       if (editing) return;
       if (kind === "course" || kind === "all") { if (!focus) { if (!findLesson(cur.id)) { go("kurs"); return; } const y = window.scrollY; renderLesson(cur.id); window.scrollTo(0, y); } }

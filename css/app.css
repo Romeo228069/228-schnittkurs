@@ -151,3 +151,53 @@ body.is-login{background:var(--bg)}
 .bigbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
 .bigscroll{overflow:auto;-webkit-overflow-scrolling:touch;padding:0 16px 24px}
 .bigscroll img{display:block;width:max(100%,1200px);height:auto;border-radius:10px}
+
+/* Fragen, Kommentare, Lernweg */
+.nav .sm{display:none}
+@media (max-width:733px){.nav .lg{display:none}.nav .sm{display:inline}}
+.seg button{position:relative}
+.nb{position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;padding:0 4px;border-radius:980px;background:var(--red);color:#fff;font-size:.62rem;font-weight:600;display:grid;place-items:center;line-height:1}
+.thead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qst{display:inline-flex;align-items:center;font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:7px;background:var(--card2);color:var(--mute)}
+.qst.open{background:color-mix(in srgb,var(--warn) 18%,var(--card));color:var(--warn)}
+.qst.ok{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.qst.done{color:var(--faint)}
+.msg .who em{font-style:normal;color:var(--faint);font-weight:400}
+.mref{display:inline-block;margin-top:4px;font-size:.76rem;color:var(--mute);border-left:2px solid var(--mc,#4f8fe0);padding-left:7px}
+.msgf{display:grid;gap:8px}
+.msgrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+@media (max-width:420px){.msgrow{grid-template-columns:minmax(0,1fr)}}
+.kindseg button{min-height:34px;font-size:.8rem}
+.refchip{display:inline-flex;align-items:center;gap:6px;justify-self:start;max-width:100%;font-size:.8rem;padding:4px 4px 4px 10px;border-radius:8px;background:var(--card2);color:var(--fg)}
+.refchip span{overflow-wrap:anywhere}
+.refx{width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--mute);cursor:pointer;font-size:1rem}
+.qclose{justify-self:start}
+.askspot{justify-self:start;min-height:40px;padding:0 6px;font-size:.86rem}
+.shdet{grid-template-areas:none}
+.qnew{display:grid;gap:12px;background:var(--card);border-radius:16px;padding:18px;margin-bottom:22px}
+.qbar{margin:4px 0 14px}
+.qlist{display:grid;gap:14px}
+.qthread{display:grid;gap:12px;padding:16px 0 18px;border-bottom:1px solid var(--line)}
+.qlink{border:0;background:none;padding:0;color:var(--fg);font-weight:600;text-align:left;cursor:pointer;font-size:.98rem}
+.qlink[data-go]:hover{color:var(--link)}
+.reflect{display:grid;gap:12px;background:var(--card);border-radius:16px;padding:18px 20px}
+.confseg button[aria-pressed="true"][data-conf="3"]{background:var(--ok);color:#002b0d}
+.confseg button[aria-pressed="true"][data-conf="2"]{background:var(--warn);color:#2b2300}
+.confseg button[aria-pressed="true"][data-conf="1"]{background:var(--red);color:#fff}
+.jrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.jnote{margin:10px 0 0;font-size:.92rem;display:grid;gap:4px}
+.conf{display:inline-flex;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:7px}
+.conf.c3{background:color-mix(in srgb,var(--ok) 18%,var(--card));color:var(--ok)}
+.conf.c2{background:color-mix(in srgb,var(--warn) 18%,var(--card));color:var(--warn)}
+.conf.c1{background:color-mix(in srgb,var(--red) 18%,var(--card));color:var(--red)}
+.lw{display:grid;gap:14px;margin:8px 0 34px;padding:18px 20px;background:var(--card);border-radius:16px}
+.lwhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.days{display:grid;grid-template-columns:repeat(28,minmax(0,1fr));gap:3px}
+.days i{aspect-ratio:1/1;border-radius:3px;background:var(--card2);min-width:0}
+.days i.on{background:var(--ok)}
+.days i.today{box-shadow:inset 0 0 0 1.5px var(--fg)}
+.lwstats{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:.86rem}
+.lwq{margin-left:auto;border:0;background:none;color:var(--link);cursor:pointer;font-weight:600;font-size:.86rem;min-height:36px;padding:0}
+.lwcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 30px}
+@media (max-width:700px){.lwcols{grid-template-columns:minmax(0,1fr)}.lwq{margin-left:0}}
+.evr.jn span{white-space:normal}

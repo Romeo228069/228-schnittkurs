@@ -10,6 +10,8 @@ Beim Öffnen sagt man, wer man ist. Kamila ist die Schülerin: sie arbeitet die 
 
 Romeo ist der Lehrer: er sieht Kamilas Stand live (abgeschlossene Lektionen, Übungen, Checks, Training, Verlauf, Fragen), antwortet in den Lektionen, kann Texte jeder Lektion ändern, Lektionen ausblenden oder eigene hinzufügen und den Kurs als Kamila ansehen.
 
+Fragen und Kommentare: Kamila fragt in jeder Lektion, direkt zu einem Bildpunkt oder allgemein auf der Seite Fragen und kann statt einer Frage auch einen Kommentar hinterlassen. Jede Frage ist offen, beantwortet oder erledigt, ein Zähler oben zeigt Neues. Lernweg: Lerntage der letzten vier Wochen, Selbsteinschätzung je Lektion (sitzt, geht so, unsicher), eigene Notizen je Lektion und eine Liste zum Wiederholen. Romeo sieht all das in der Lehreransicht und im Verlauf.
+
 Beim allerersten Besuch legt jede Person ihr eigenes Passwort fest (mindestens 6 Zeichen), danach bleibt man auf dem Gerät angemeldet.
 
 ## Screenshots
