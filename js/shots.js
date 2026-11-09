@@ -4,7 +4,8 @@
 export const IMG = {
   project_manager: [1600, 1125], settings_master: [1040, 1080], settings_proxy: [1040, 1080], new_timeline: [1000, 576],
   media_page: [1600, 952], edit_full: [1600, 952], inspector: [1600, 952], effects_titles: [1600, 952], effects_transitions: [1600, 952],
-  title_timeline: [1600, 952], retime: [1600, 952], fusion_page: [1600, 952], color_page: [1600, 952], fairlight_page: [1600, 952], deliver_page: [1600, 952]
+  title_timeline: [1600, 952], retime: [1600, 952], fusion_page: [1600, 952], color_page: [1600, 952], fairlight_page: [1600, 952], deliver_page: [1600, 952],
+  proxy_generator: [1400, 1009]
 };
 
 const TB = 48.8, TH = 3.4; // Werkzeugleiste der Edit Page
@@ -52,10 +53,17 @@ export const SHOTS = {
         [[28, 88, 42, 3], "Proxy Media Resolution: Choose Automatically oder Half.", "Proxy Media Resolution: Choose Automatically or Half."],
         [[28, 90.5, 42, 3], "Proxy Media Format: unter Windows DNxHR LB, am Mac ProRes 422 Proxy.", "Proxy Media Format: DNxHR LB on Windows, ProRes 422 Proxy on a Mac."],
         [[1, 15.8, 17.5, 3], "Proxy generation location: Speicherort, am besten die schnelle SSD.", "Proxy generation location: where they are saved, ideally the fast SSD."]
+      ] },
+      { img: "proxy_generator", title: { de: "Oder: Blackmagic Proxy Generator, kommt kostenlos mit Resolve", en: "Or: Blackmagic Proxy Generator, free with Resolve" }, spots: [
+        [[2.1, 93.2, 11.8, 4.2], "Add: den Ordner mit deinen Originalclips wählen, zum Beispiel 01_Footage.", "Add: pick the folder with your original clips, for example 01_Footage."],
+        [[33.6, 32.4, 23, 13.2], "Format wählen. H.264 1080p läuft auf jedem Rechner flüssig. Unter Windows kann die Liste etwas anders aussehen.", "Pick a format. H.264 1080p plays smoothly on any computer. On Windows the list may look a little different."],
+        [[82.4, 15.5, 13.2, 4.4], "Start. Ab jetzt baut er Proxys für alles im Ordner, auch für Clips, die später dazukommen. Die Leertaste startet und stoppt.", "Start. From now on it builds proxies for everything in the folder, including clips added later. Space starts and stops."],
+        [[2.2, 57.6, 95.7, 4.2], "Status: Waiting wartet auf Start, dann Processing, am Ende Completed.", "Status: Waiting means it waits for Start, then Processing, finally Completed."],
+        [[27.6, 93.2, 11.8, 4.2], "Show öffnet den Ordner. Neben den Originalen liegt jetzt der Unterordner Proxy.", "Show opens the folder. Next to the originals there is now a subfolder called Proxy."]
       ] }
     ],
-    steps: { de: ["Im Media Pool alle Clips markieren ([[cmd+A]]), Rechtsklick, Generate Proxy Media.", "Menü Playback > Proxy Handling > Prefer Proxies.", "Beim Export nimmt Resolve automatisch die Originale."], en: ["In the Media Pool select all clips ([[cmd+A]]), right click, Generate Proxy Media.", "Menu Playback > Proxy Handling > Prefer Proxies.", "On export Resolve automatically uses the originals."] },
-    tips: { de: ["Schnelle Hilfe ohne Proxys: Playback > Timeline Proxy Resolution > Half oder Quarter.", "Mit Resolve kommt das Programm Blackmagic Proxy Generator. Es baut Proxys automatisch für einen beobachteten Ordner."], en: ["Quick help without proxies: Playback > Timeline Proxy Resolution > Half or Quarter.", "Resolve comes with Blackmagic Proxy Generator. It builds proxies automatically for a watched folder."] }
+    steps: { de: ["Weg 1 in Resolve: im Media Pool alle Clips markieren ([[cmd+A]]), Rechtsklick, Generate Proxy Media.", "Weg 2 mit dem Proxy Generator (Bild 2): Ordner hinzufügen, Format wählen, Start. Danach die Originale in Resolve importieren, die Proxys hängen sich selbst an.", "Menü Playback > Proxy Handling > Prefer Proxies.", "Beim Export nimmt Resolve automatisch die Originale."], en: ["Way 1 in Resolve: in the Media Pool select all clips ([[cmd+A]]), right click, Generate Proxy Media.", "Way 2 with the Proxy Generator (picture 2): add the folder, pick a format, Start. Then import the originals into Resolve, the proxies attach themselves.", "Menu Playback > Proxy Handling > Prefer Proxies.", "On export Resolve automatically uses the originals."] },
+    tips: { de: ["Proxy Generator unter Windows: Start > Blackmagic Design > Blackmagic Proxy Generator Lite. Er ist kostenlos dabei und läuft nebenbei, Resolve bleibt frei.", "Am besten direkt nach dem Kopieren der Karte starten, dann sind die Proxys fertig, bevor du schneidest.", "Hängen die Proxys nicht dran: Clips markieren, Rechtsklick > Link Proxy Media, den Ordner Proxy wählen.", "Schnelle Hilfe ganz ohne Proxys: Playback > Timeline Proxy Resolution > Half oder Quarter."], en: ["Proxy Generator on Windows: Start > Blackmagic Design > Blackmagic Proxy Generator Lite. It comes free with Resolve and runs on the side, Resolve stays free to use.", "Best started right after copying the card, so the proxies are ready before you edit.", "If the proxies don't attach: select the clips, right click > Link Proxy Media, choose the Proxy folder.", "Quick help without any proxies: Playback > Timeline Proxy Resolution > Half or Quarter."] }
   },
   l7: {
     why: { de: "Hier entsteht dein Film. Tipp die Punkte an.", en: "This is where your film is made. Tap the points." },

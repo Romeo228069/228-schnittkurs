@@ -10,13 +10,13 @@ Beim Öffnen sagt man, wer man ist. Kamila ist die Schülerin: sie arbeitet die 
 
 Romeo ist der Lehrer: er sieht Kamilas Stand live (abgeschlossene Lektionen, Übungen, Checks, Training, Verlauf, Fragen), antwortet in den Lektionen, kann Texte jeder Lektion ändern, Lektionen ausblenden oder eigene hinzufügen und den Kurs als Kamila ansehen.
 
-Fragen und Kommentare: Kamila fragt in jeder Lektion, direkt zu einem Bildpunkt oder allgemein auf der Seite Fragen und kann statt einer Frage auch einen Kommentar hinterlassen. Jede Frage ist offen, beantwortet oder erledigt, ein Zähler oben zeigt Neues. Lernweg: Lerntage der letzten vier Wochen, Selbsteinschätzung je Lektion (sitzt, geht so, unsicher), eigene Notizen je Lektion und eine Liste zum Wiederholen. Romeo sieht all das in der Lehreransicht und im Verlauf.
+Fragen und Notizen: Neben jedem Teil einer Lektion (Einleitung, Bildpunkt, Schritt, Merksatz, Shortcut, Schaubild, Übung, Check) steht eine kleine Sprechblase. Ein Tipp darauf öffnet das Eingabefeld genau an dieser Stelle, Kamila wählt Frage oder Notiz, und Romeos Antwort erscheint direkt darunter. Allgemeines geht unten in der Lektion oder auf der Seite Fragen, dort führt jeder Bezug per Tipp zurück zur Stelle. Jede Frage ist offen, beantwortet oder erledigt, ein Zähler oben zeigt Neues. Lernweg: Lerntage der letzten vier Wochen, Selbsteinschätzung je Lektion (sitzt, geht so, unsicher), eigene Notizen je Lektion und eine Liste zum Wiederholen. Romeo sieht all das in der Lehreransicht und im Verlauf.
 
 Beim allerersten Besuch legt jede Person ihr eigenes Passwort fest (mindestens 6 Zeichen), danach bleibt man auf dem Gerät angemeldet.
 
 ## Screenshots
 
-Die Bilder in `img/` sind echte Screenshots aus DaVinci Resolve Studio 21.1, aufgenommen im Demo-Projekt „228 Schnittkurs Demo“ mit neutralem, selbst erzeugtem Material (Ordner `20261109_Kamila_Demo` neben der Webseite). Kundenprojekte im Project Manager sind unkenntlich gemacht. Die klickbaren Punkte und Texte dazu stehen in `js/shots.js` (Koordinaten in Prozent). Resolve sieht unter Windows bis auf die Menüleiste gleich aus, die Tasten stehen standardmäßig auf Windows.
+Die Bilder in `img/` sind echte Screenshots aus DaVinci Resolve Studio 21.1 und dem Blackmagic Proxy Generator, aufgenommen im Demo-Projekt „228 Schnittkurs Demo“ mit neutralem, selbst erzeugtem Material (Ordner `20261109_Kamila_Demo` neben der Webseite). Kundenprojekte im Project Manager sind unkenntlich gemacht. Die klickbaren Punkte und Texte dazu stehen in `js/shots.js` (Koordinaten in Prozent). Resolve sieht unter Windows bis auf die Menüleiste gleich aus, die Tasten stehen standardmäßig auf Windows.
 
 ## Technik
 

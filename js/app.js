@@ -97,12 +97,17 @@ function learnerSet(patch, ev, lid) {
 const GEN = "allg";
 const kindOf = m => m.k || "q";
 const threadOf = id => (NT().threads || {})[id] || [];
-function threadState(id) {
-  const th = threadOf(id);
-  const lastQ = Math.max(0, ...th.filter(m => m.f === "k" && kindOf(m) === "q").map(m => m.at));
-  const lastR = Math.max(0, ...th.filter(m => m.f === "r").map(m => m.at));
+function aGroups(id) {
+  const th = threadOf(id), genR = Math.max(0, ...th.filter(m => m.f === "r" && !m.a).map(m => m.at)), g = {};
+  th.forEach(m => { const x = g[m.a || ""] || (g[m.a || ""] = { q: 0, r: 0 }); if (m.f === "k" && kindOf(m) === "q") x.q = Math.max(x.q, m.at); if (m.f === "r") x.r = Math.max(x.r, m.at); });
   const closed = (NT().closed || {})[id] || 0;
-  const open = lastQ > 0 && lastQ > Math.max(lastR, closed);
+  Object.values(g).forEach(x => { x.open = x.q > 0 && x.q > Math.max(x.r, genR, closed); });
+  return { g, closed };
+}
+function threadState(id) {
+  const th = threadOf(id), { g, closed } = aGroups(id);
+  const lastQ = Math.max(0, ...Object.values(g).map(x => x.q));
+  const open = Object.values(g).some(x => x.open);
   return { open, answered: lastQ > 0 && !open, closed: closed && closed >= lastQ, last: th.length ? th[th.length - 1].at : 0, n: th.length };
 }
 function allThreads() { return Object.keys(NT().threads || {}).filter(id => threadOf(id).length && (id === GEN || lessonList(true).some(l => l.id === id))); }
@@ -117,32 +122,98 @@ function statusChip(id) {
   if (s.open) return '<span class="qst open">' + tt("Offen", "Open") + "</span>";
   if (s.closed) return '<span class="qst done">' + tt("Erledigt", "Resolved") + "</span>";
   if (s.answered) return '<span class="qst ok">' + tt("Beantwortet", "Answered") + "</span>";
-  return '<span class="qst">' + tt("Kommentar", "Comment") + "</span>";
+  return '<span class="qst">' + tt("Notiz", "Note") + "</span>";
 }
-function msgHtml(m) {
+function msgHtml(m, tid, noRef) {
   const who_ = m.f === "k" ? "Kamila" : "Romeo";
-  const kind = m.f === "k" ? (kindOf(m) === "c" ? tt("Kommentar", "Comment") : tt("Frage", "Question")) : tt("Antwort", "Reply");
-  return '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + who_ + " <em>" + kind + "</em> <time>" + when(m.at) + "</time></span>" + (m.ref ? '<span class="mref">' + T(m.ref) + "</span>" : "") + "<p>" + esc(m.t).replace(/\n/g, "<br>") + "</p></div>";
+  const kind = m.f === "k" ? (kindOf(m) === "c" ? tt("Notiz", "Note") : tt("Frage", "Question")) : tt("Antwort", "Reply");
+  const ref = noRef || !m.ref ? "" : m.a && tid ? '<button type="button" class="mref" data-goa="' + tid + "|" + esc(m.a) + '">' + T(m.ref) + " ›</button>" : '<span class="mref">' + T(m.ref) + "</span>";
+  return '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + who_ + " <em>" + kind + "</em> <time>" + when(m.at) + "</time></span>" + ref + "<p>" + esc(m.t).replace(/\n/g, "<br>") + "</p></div>";
 }
+
+/* ---------- Direkt fragen: Sprechblase an jedem Teil einer Lektion ---------- */
+const ASK_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H9.5L5.5 17.5v-3H4A1.5 1.5 0 0 1 2.5 13V5A1.5 1.5 0 0 1 4 3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.2 7.3a1.85 1.85 0 1 1 2.5 1.75c-.45.17-.7.5-.7.95v.3M10 12v.15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+const plain = s => String(s || "").replace(/\[\[([^\]]+?)\]\]/g, (m, c) => caps(c).join(" "));
+const excerpt = s => { const p = plain(s); return p.length > 46 ? p.slice(0, 44).replace(/\s+\S*$/, "") + " …" : p; };
+function askBtn(key, label) {
+  return '<button type="button" class="ask" data-ask="' + esc(key) + '" data-al="' + esc(label) + '" aria-expanded="false" aria-label="' + esc(tt("Frage oder Notiz zu ", "Question or note about ") + plain(label)) + '" title="' + tt("Frage oder Notiz genau hierzu", "Question or note right here") + '">' + ASK_ICON + '<b class="askn" hidden></b></button>';
+}
+const annBox = key => '<div class="ann" data-ann="' + esc(key) + '"><div class="annmsgs"></div></div>';
+let annReadBefore = 0, pendingAnchor = null;
+function paintAnnotations(lid) {
+  const th = threadOf(lid), { g } = aGroups(lid), mine = me() === "romeo" ? "r" : "k";
+  document.querySelectorAll("#view .ann[data-ann]").forEach(box => {
+    const key = box.dataset.ann, ms = th.filter(m => m.a === key);
+    box.querySelector(".annmsgs").innerHTML = ms.map(m => msgHtml(m, lid, true)).join("");
+    const btn = document.querySelector('#view .ask[data-ask="' + CSS.escape(key) + '"]'); if (!btn) return;
+    const open = !!(g[key] && g[key].open), fresh = ms.some(m => m.f !== mine && m.at > annReadBefore);
+    btn.classList.toggle("has", ms.length > 0); btn.classList.toggle("open", open); btn.classList.toggle("fresh", fresh && !open);
+    const n = btn.querySelector(".askn"); n.hidden = !ms.length; n.textContent = ms.length || "";
+  });
+}
+function openComposer(btn) {
+  const key = btn.dataset.ask, label = btn.dataset.al;
+  const box = document.querySelector('#view .ann[data-ann="' + CSS.escape(key) + '"]'); if (!box) return;
+  const old = document.querySelector("#view .icomp");
+  if (old) { const same = old.dataset.a === key; old.remove(); document.querySelectorAll("#view .ask[aria-expanded=true]").forEach(x => x.setAttribute("aria-expanded", "false")); if (same) return; }
+  const admin = isAdmin(); let kind = "q";
+  const f = document.createElement("form"); f.className = "icomp"; f.dataset.a = key;
+  f.innerHTML = (admin ? "" : '<div class="wbtns kindseg" role="group"><button type="button" data-kind="q" aria-pressed="true">' + tt("Frage", "Question") + '</button><button type="button" data-kind="c" aria-pressed="false">' + tt("Notiz", "Note") + "</button></div>") +
+    '<label class="fld"><span class="vh">' + esc(plain(label)) + '</span><textarea rows="2" placeholder="' + (admin ? tt("Antwort oder Hinweis genau an dieser Stelle", "Reply or hint right at this spot") : tt("Was ist hier unklar?", "What's unclear here?")) + '"></textarea></label>' +
+    '<div class="irow"><button class="btn pri" type="submit">' + (admin ? tt("Senden", "Send") : tt("Fragen", "Ask")) + '</button><button class="btn ghost" type="button" data-x>' + tt("Abbrechen", "Cancel") + '</button><span class="mute small">' + (admin ? tt("Kamila sieht es genau hier.", "Kamila sees it right here.") : tt("Romeo sieht es genau hier.", "Romeo sees it right here.")) + "</span></div>";
+  box.appendChild(f); btn.setAttribute("aria-expanded", "true");
+  const fig = box.closest(".shot"), pt = box.closest("li") && box.closest("li").querySelector("button[data-i]"); if (fig && pt) setSpot(fig, +pt.dataset.i);
+  const ta = f.querySelector("textarea"), sub = f.querySelector("[type=submit]"); ta.focus({ preventScroll: true });
+  f.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => {
+    kind = b.dataset.kind; f.querySelectorAll("[data-kind]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    ta.placeholder = kind === "c" ? tt("Deine Notiz zu dieser Stelle", "Your note on this spot") : tt("Was ist hier unklar?", "What's unclear here?");
+    sub.textContent = kind === "c" ? tt("Speichern", "Save") : tt("Fragen", "Ask"); ta.focus();
+  }));
+  f.querySelector("[data-x]").addEventListener("click", () => { f.remove(); btn.setAttribute("aria-expanded", "false"); });
+  ta.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) f.requestSubmit(); });
+  f.addEventListener("submit", e => {
+    e.preventDefault();
+    const t = ta.value.trim(); if (!t) { ta.focus(); return; }
+    if (!sendMsg(cur.id, t, kind, label, key)) return;
+    f.remove(); btn.setAttribute("aria-expanded", "false"); paintLesson();
+    toast(admin ? tt("Gesendet. Kamila sieht es an dieser Stelle.", "Sent. Kamila sees it at this spot.") : kind === "c" ? tt("Notiz gespeichert. Romeo sieht sie.", "Note saved. Romeo can see it.") : tt("Gefragt. Romeo antwortet genau hier.", "Asked. Romeo will reply right here."));
+  });
+}
+function jumpToAnchor(a) {
+  const box = document.querySelector('#view .ann[data-ann="' + CSS.escape(a) + '"]'); if (!box) return false;
+  const btn = document.querySelector('#view .ask[data-ask="' + CSS.escape(a) + '"]');
+  const row = (btn && btn.closest("li, .krow, .arow, .shead")) || box;
+  const fig = box.closest(".shot"), li = box.closest("li");
+  if (fig && li) { const b = li.querySelector("button[data-i]"); if (b) setSpot(fig, +b.dataset.i); }
+  row.scrollIntoView({ block: "center" }); row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+  return true;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".mref[data-goa]"); if (!b) return;
+  const [tid, a] = b.dataset.goa.split("|");
+  if (cur.view === "lesson" && cur.id === tid) jumpToAnchor(a);
+  else { pendingAnchor = { tid, a }; go("lektion-" + tid); }
+});
 const qform = {}; // je Gespräch: { kind, ref }
 function threadFormHtml(id, compact) {
   const st = qform[id] || (qform[id] = { kind: "q", ref: "" });
   const admin = isAdmin();
   return '<form class="msgf" data-tid="' + id + '">' +
-    (admin ? "" : '<div class="wbtns kindseg" role="group"><button type="button" data-kind="q" aria-pressed="' + (st.kind === "q") + '">' + tt("Frage", "Question") + '</button><button type="button" data-kind="c" aria-pressed="' + (st.kind === "c") + '">' + tt("Kommentar", "Comment") + "</button></div>") +
+    (admin ? "" : '<div class="wbtns kindseg" role="group"><button type="button" data-kind="q" aria-pressed="' + (st.kind === "q") + '">' + tt("Frage", "Question") + '</button><button type="button" data-kind="c" aria-pressed="' + (st.kind === "c") + '">' + tt("Notiz", "Note") + "</button></div>") +
     '<span class="refchip"' + (st.ref ? "" : " hidden") + "><span>" + T(st.ref) + '</span><button type="button" class="refx" aria-label="' + tt("Bezug entfernen", "Remove reference") + '">×</button></span>' +
     '<div class="msgrow"><label class="fld"><span class="vh">' + tt("Nachricht", "Message") + '</span><textarea rows="' + (compact ? 1 : 2) + '" placeholder="' + (admin ? tt("Antwort an Kamila", "Reply to Kamila") : st.kind === "c" ? tt("Was möchtest du festhalten?", "What would you like to note?") : tt("Was ist unklar? Romeo antwortet hier", "What's unclear? Romeo replies here")) + '"></textarea></label><button class="btn sec" type="submit">' + tt("Senden", "Send") + "</button></div>" +
     (admin && threadState(id).open ? '<button type="button" class="btn ghost qclose">' + tt("Als erledigt markieren", "Mark as resolved") + "</button>" : "") +
     "</form>";
 }
-function sendMsg(id, t, kind, ref) {
+function sendMsg(id, t, kind, ref, anchor) {
   if (!canWrite()) return false;
   const f = me() === "romeo" ? "r" : "k";
   const msg = { f, t, at: now() };
   if (f === "k") msg.k = kind || "q";
   if (ref) msg.ref = ref;
+  if (anchor) msg.a = anchor;
   store.write("notes", { threads: { [id]: union(msg) }, read: { [f]: { [id]: now() } } });
-  if (f === "k") { learnerSet({}, null); store.log(kind === "c" ? "comment" : "msg", id === GEN ? null : id); }
+  if (f === "k") { learnerSet({}, null); store.log(kind === "c" ? "comment" : "msg", id === GEN ? null : id, ref ? { ref: plain(ref).slice(0, 80) } : null); }
   return true;
 }
 function bindThreadForms(scope, after) {
@@ -160,7 +231,7 @@ function bindThreadForms(scope, after) {
       const tid = id === "new" ? (document.getElementById("qlesson") || {}).value || GEN : id;
       if (!sendMsg(tid, t, st.kind, st.ref)) return;
       ta.value = ""; st.ref = ""; const rc = form.querySelector(".refchip"); if (rc) rc.hidden = true;
-      toast(me() === "romeo" ? tt("Gesendet. Kamila sieht deine Antwort.", "Sent. Kamila can see your reply.") : st.kind === "c" ? tt("Kommentar gespeichert. Romeo sieht ihn.", "Comment saved. Romeo can see it.") : tt("Gesendet. Romeo sieht deine Frage.", "Sent. Romeo can see your question."));
+      toast(me() === "romeo" ? tt("Gesendet. Kamila sieht deine Antwort.", "Sent. Kamila can see your reply.") : st.kind === "c" ? tt("Notiz gespeichert. Romeo sieht sie.", "Note saved. Romeo can see it.") : tt("Gesendet. Romeo sieht deine Frage.", "Sent. Romeo can see your question."));
       if (after) after(tid);
     });
   });
@@ -451,8 +522,8 @@ function lernwegHtml(list, admin) {
 
 function evText(e, l) {
   const n = l ? l.n : "?", s = e.s != null ? e.s : "?";
-  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: [l ? "hat eine Frage zu Lektion " + n + " gestellt" : "hat eine allgemeine Frage gestellt", l ? "asked a question about lesson " + n : "asked a general question"], comment: [l ? "hat Lektion " + n + " kommentiert" : "hat einen Kommentar geschrieben", l ? "commented on lesson " + n : "wrote a comment"], conf: ["hat Lektion " + n + " als " + (["", "unsicher", "geht so", "sitzt"][e.v || 0] || "") + " eingeschätzt", "rated lesson " + n + " as " + (["", "unsure", "so so", "got it"][e.v || 0] || "")], journal: ["hat eine Notiz zu Lektion " + n + " geschrieben", "wrote a note on lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
-  return D ? tt(D[0], D[1]) : e.type;
+  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: [l ? "hat eine Frage zu Lektion " + n + " gestellt" : "hat eine allgemeine Frage gestellt", l ? "asked a question about lesson " + n : "asked a general question"], comment: [l ? "hat in Lektion " + n + " eine Notiz hinterlassen" : "hat eine Notiz hinterlassen", l ? "left a note in lesson " + n : "left a note"], conf: ["hat Lektion " + n + " als " + (["", "unsicher", "geht so", "sitzt"][e.v || 0] || "") + " eingeschätzt", "rated lesson " + n + " as " + (["", "unsure", "so so", "got it"][e.v || 0] || "")], journal: ["hat ihr Fazit zu Lektion " + n + " geschrieben", "wrote her takeaway on lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
+  return D ? tt(D[0], D[1]) + ((e.type === "msg" || e.type === "comment") && e.ref ? ", " + tt("bei ", "at ") + esc(e.ref) : "") : esc(e.type);
 }
 function dashboardHtml() {
   const vis = visible(), all = lessons(), p = P();
@@ -509,20 +580,20 @@ function renderLesson(id) {
     (admin ? '<div class="abtns"><button class="btn sec" id="editbtn">' + tt("Bearbeiten", "Edit") + '</button><button class="btn sec" id="hidebtn">' + (l.hidden ? tt("Für Kamila einblenden", "Show to Kamila") : tt("Für Kamila ausblenden", "Hide from Kamila")) + "</button></div>" : "") + "</div>";
   if (admin) h += '<div class="kstat" id="kstat"></div>';
   h += '<div class="lmeta"><span class="chip"><span class="clipsw"></span>' + esc(modTitle(m)) + '</span><span class="x">' + tt("Lektion " + l.n + " von " + list.length, "Lesson " + l.n + " of " + list.length) + '</span><span class="x">' + (+l.min || 0) + " Min</span>" + (l.hidden ? '<span class="x warnc">' + tt("für Kamila ausgeblendet", "hidden from Kamila") + "</span>" : "") + '<span class="x okc" id="donetag"></span></div>' +
-    '<h1 class="ltitle">' + esc(l.title) + ".</h1>" + (l.why ? '<p class="lead">' + T(l.why) + "</p>" : "");
+    '<h1 class="ltitle">' + esc(l.title) + ".</h1>" + (l.why ? '<div class="arow leadrow"><p class="lead">' + T(l.why) + "</p>" + askBtn("why", tt("Einleitung", "Intro")) + "</div>" + annBox("why") : "");
   h += shotsHtml(l);
-  if (l.widget && WIDGETS[l.widget]) h += '<div class="sec" id="wg"></div>';
-  if (l.steps && l.steps.length) h += '<div class="sec"><span class="label">' + (l.rules ? tt("Die Regeln", "The rules") : tt("Schritt für Schritt", "Step by step")) + "</span>" + (l.rules ? '<ul class="rules">' : '<ol class="steps">') + l.steps.map(s => "<li><span>" + T(s) + "</span></li>").join("") + (l.rules ? "</ul>" : "</ol>") + "</div>";
-  if (l.tips && l.tips.length) h += '<div class="sec"><span class="label">' + tt("Merken", "Remember") + '</span><ul class="tips">' + l.tips.map(s => "<li><span>" + T(s) + "</span></li>").join("") + "</ul></div>";
+  if (l.widget && WIDGETS[l.widget]) h += '<div class="sec wgwrap"><div id="wg"></div><div class="arow wgask"><span class="mute small">' + tt("Frage zum Schaubild?", "Question about this demo?") + "</span>" + askBtn("w", tt("Schaubild", "Demo")) + "</div>" + annBox("w") + "</div>";
+  if (l.steps && l.steps.length) h += '<div class="sec"><span class="label">' + (l.rules ? tt("Die Regeln", "The rules") : tt("Schritt für Schritt", "Step by step")) + "</span>" + (l.rules ? '<ul class="rules">' : '<ol class="steps">') + l.steps.map((s, i) => '<li class="a"><span>' + T(s) + "</span>" + askBtn("s:" + i, (l.rules ? tt("Regel ", "Rule ") : tt("Schritt ", "Step ")) + (i + 1) + ": " + excerpt(s)) + annBox("s:" + i) + "</li>").join("") + (l.rules ? "</ul>" : "</ol>") + "</div>";
+  if (l.tips && l.tips.length) h += '<div class="sec"><span class="label">' + tt("Merken", "Remember") + '</span><ul class="tips">' + l.tips.map((s, i) => '<li class="a"><span>' + T(s) + "</span>" + askBtn("t:" + i, tt("Merken: ", "Remember: ") + excerpt(s)) + annBox("t:" + i) + "</li>").join("") + "</ul></div>";
   const ks = (l.keys || []).map(scFind).filter(Boolean);
-  if (ks.length) h += '<div class="sec"><span class="label">' + tt("Shortcuts in dieser Lektion", "Shortcuts in this lesson") + '</span><div class="klist">' + ks.map(s => '<div class="krow">' + kbd(s.k) + '<span class="f">' + T(scF(s)) + "</span></div>").join("") + "</div></div>";
+  if (ks.length) h += '<div class="sec"><span class="label">' + tt("Shortcuts in dieser Lektion", "Shortcuts in this lesson") + '</span><div class="klist">' + ks.map(s => '<div class="krow a">' + kbd(s.k) + '<span class="f">' + T(scF(s)) + "</span>" + askBtn("k:" + s.k, "[[" + s.k + "]] " + excerpt(scF(s))) + annBox("k:" + s.k) + "</div>").join("") + "</div></div>";
   if (admin && l.romeo) h += '<div class="sec romeo"><span class="label">' + tt("Für dich, so erklärst du es", "For you, how to explain it") + "</span><p>" + T(l.romeo) + "</p></div>";
-  if (l.task) h += '<div class="sec task"><span class="label">' + tt("Übung", "Exercise") + "</span><p>" + T(l.task) + '</p><button class="chk" role="checkbox" aria-checked="false" id="exchk"' + (admin ? " disabled" : "") + '><span class="bx">' + CHECK + "</span>" + (admin ? tt("Kamila hat die Übung gemacht", "Kamila did the exercise") : tt("Übung gemacht", "Exercise done")) + "</button></div>";
-  if (l.quiz && l.quiz.q) h += '<div class="sec quiz" id="quiz"><span class="label">Check</span><p class="q">' + T(l.quiz.q) + "</p>" + l.quiz.a.map((a, i) => '<button class="qopt" data-i="' + i + '"' + (admin ? " disabled" : "") + '><span class="ltr">' + "ABC"[i] + "</span><span>" + T(a) + "</span></button>").join("") + '<p class="qwhy" id="qwhy" hidden></p></div>';
+  if (l.task) h += '<div class="sec task"><div class="shead"><span class="label">' + tt("Übung", "Exercise") + "</span>" + askBtn("task", tt("Übung", "Exercise")) + "</div><p>" + T(l.task) + "</p>" + annBox("task") + '<button class="chk" role="checkbox" aria-checked="false" id="exchk"' + (admin ? " disabled" : "") + '><span class="bx">' + CHECK + "</span>" + (admin ? tt("Kamila hat die Übung gemacht", "Kamila did the exercise") : tt("Übung gemacht", "Exercise done")) + "</button></div>";
+  if (l.quiz && l.quiz.q) h += '<div class="sec quiz" id="quiz"><div class="shead"><span class="label">Check</span>' + askBtn("quiz", "Check") + "</div>" + annBox("quiz") + '<p class="q">' + T(l.quiz.q) + "</p>" + l.quiz.a.map((a, i) => '<button class="qopt" data-i="' + i + '"' + (admin ? " disabled" : "") + '><span class="ltr">' + "ABC"[i] + "</span><span>" + T(a) + "</span></button>").join("") + '<p class="qwhy" id="qwhy" hidden></p></div>';
   if (!admin) h += '<div class="sec reflect" id="reflect"><span class="label">' + tt("Wie sicher fühlst du dich?", "How confident do you feel?") + '</span><div class="wbtns confseg" role="group">' + CONF().map(c => '<button type="button" data-conf="' + c[0] + '" aria-pressed="false">' + c[1] + "</button>").join("") + "</div>" +
     '<label class="fld"><span>' + tt("Deine Notiz zur Lektion", "Your note on this lesson") + " <em>" + tt("Romeo sieht sie", "Romeo can see it") + '</em></span><textarea id="jt" rows="2" placeholder="' + tt("Was nimmst du mit? Was war schwer?", "What do you take away? What was hard?") + '"></textarea></label>' +
     '<div class="jrow"><button type="button" class="btn sec" id="jsave">' + tt("Notiz speichern", "Save note") + '</button><span class="mute small" id="jstate"></span></div></div>';
-  h += '<div class="sec thread" id="thread"><div class="thead"><span class="label">' + (admin ? tt("Fragen und Kommentare von Kamila", "Questions and comments from Kamila") : tt("Frage oder Kommentar an Romeo", "Question or comment for Romeo")) + '</span><span id="qstatus"></span></div><div class="msgs" id="msgs"></div>' + threadFormHtml(id) + "</div>";
+  h += '<div class="sec thread" id="thread"><div class="thead"><span class="label">' + (admin ? tt("Alle Fragen und Notizen dieser Lektion", "All questions and notes in this lesson") : tt("Allgemeine Frage an Romeo", "General question for Romeo")) + '</span><span id="qstatus"></span></div><div class="msgs" id="msgs"></div>' + threadFormHtml(id) + "</div>";
   h += '<div class="finish">' + (admin ? '<button class="chk" role="checkbox" aria-checked="false" id="donebtn"><span class="bx">' + CHECK + "</span>" + tt("Für Kamila als abgeschlossen markieren", "Mark as completed for Kamila") + "</button>" : '<button class="btn pri" id="donebtn">' + tt("Lektion abschließen", "Complete lesson") + "</button>") +
     '<div class="pn"><button ' + (prev ? 'data-go="lektion-' + prev.id + '"' : "disabled") + "><small>" + tt("Zurück", "Back") + "</small><span>" + (prev ? esc(prev.title) : "") + "</span></button><button " + (next ? 'data-go="lektion-' + next.id + '"' : 'data-go="kurs"') + "><small>" + (next ? tt("Weiter", "Next") : tt("Fertig", "Done")) + "</small><span>" + (next ? esc(next.title) : tt("Zur Übersicht", "To the overview")) + "</span></button></div></div></div>";
   v.innerHTML = h; bindCommon(); updRing();
@@ -568,8 +639,11 @@ function renderLesson(id) {
     setCheck: (i, on) => learnerSet({ check: { [i]: on ? true : DELETE } }, null, id)
   });
   bindShots(v);
+  v.querySelectorAll(".ask[data-ask]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openComposer(b); }));
+  annReadBefore = ((NT().read || {})[me() === "romeo" ? "r" : "k"] || {})[id] || 0;
   paintLesson();
   markRead(id);
+  if (pendingAnchor && pendingAnchor.tid === id) { const a = pendingAnchor.a; pendingAnchor = null; setTimeout(() => jumpToAnchor(a), 60); }
 }
 
 /* ---------- Bildstrecken mit echten Screenshots ---------- */
@@ -584,14 +658,14 @@ function shotsHtml(l) {
       s.spots.map((p, i) => '<button class="spot' + (i ? "" : " on") + '" data-i="' + i + '" style="left:' + p[0][0] + "%;top:" + p[0][1] + "%;width:" + p[0][2] + "%;height:" + p[0][3] + '%" aria-label="' + tt("Punkt ", "Point ") + (i + 1) + '"><b>' + (i + 1) + "</b></button>").join("") +
       '<button class="shbig" aria-label="' + tt("Bild groß ansehen", "View image large") + '"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       '<div class="shdet"><div class="lens" aria-hidden="true"></div><ol class="shlist">' +
-      s.spots.map((p, i) => '<li><button data-i="' + i + '" aria-pressed="' + !i + '"><b>' + (i + 1) + "</b><span>" + T(EN() ? p[2] : p[1]) + "</span></button></li>").join("") +
-      "</ol>" + (isAdmin() ? "" : '<button class="btn ghost askspot" type="button">' + tt("Frage zu diesem Punkt stellen", "Ask about this point") + "</button>") + "</div></figure>";
+      s.spots.map((p, i) => { const k = "p:" + s.img + ":" + i; return '<li class="a"><button data-i="' + i + '" aria-pressed="' + !i + '"><b>' + (i + 1) + "</b><span>" + T(EN() ? p[2] : p[1]) + "</span></button>" + askBtn(k, excerpt(lab(s)) + tt(", Punkt ", ", point ") + (i + 1)) + annBox(k) + "</li>"; }).join("") +
+      "</ol></div></figure>";
   }).join("") + "</div>";
 }
 function setSpot(fig, i) {
   const s = findShot(fig); if (!s) return;
   fig.querySelectorAll(".spot").forEach(b => b.classList.toggle("on", +b.dataset.i === i));
-  fig.querySelectorAll(".shlist button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.i === i)));
+  fig.querySelectorAll(".shlist button[data-i]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.i === i)));
   fig.dataset.on = String(i);
   paintLens(fig);
 }
@@ -611,18 +685,8 @@ function paintLens(fig) {
 }
 function bindShots(v) {
   v.querySelectorAll(".shot").forEach(fig => {
-    fig.querySelectorAll(".spot, .shlist button").forEach(b => b.addEventListener("click", () => setSpot(fig, +b.dataset.i)));
+    fig.querySelectorAll(".spot, .shlist button[data-i]").forEach(b => b.addEventListener("click", () => setSpot(fig, +b.dataset.i)));
     fig.querySelector(".shbig").addEventListener("click", () => openBig(fig.dataset.img));
-    const ask = fig.querySelector(".askspot");
-    if (ask) ask.addEventListener("click", () => {
-      const s = findShot(fig); if (!s) return;
-      const i = +(fig.dataset.on || 0), title = s.title ? s.title[prefs.lang] || s.title.de : "";
-      const st = qform[cur.id] || (qform[cur.id] = { kind: "q", ref: "" });
-      st.ref = title + tt(", Punkt ", ", point ") + (i + 1);
-      const form = document.querySelector('#thread form.msgf'); if (!form) return;
-      const rc = form.querySelector(".refchip"); rc.hidden = false; rc.querySelector("span").innerHTML = T(st.ref);
-      form.scrollIntoView({ block: "center" }); form.querySelector("textarea").focus();
-    });
     const img = fig.querySelector("img"); if (img && !img.complete) img.addEventListener("load", () => paintLens(fig));
     paintLens(fig);
   });
@@ -657,8 +721,8 @@ function showQuiz(l, pick) {
 function paintThread(l) {
   const box = document.getElementById("msgs"); if (!box) return;
   const th = threadOf(l.id);
-  box.innerHTML = th.length ? th.map(msgHtml).join("") :
-    '<p class="mute small">' + (isAdmin() ? tt("Noch keine Nachrichten zu dieser Lektion.", "No messages about this lesson yet.") : tt("Wenn etwas unklar ist, schreib es hier hin. Zu einem Bildpunkt fragst du direkt beim Bild.", "If something is unclear, write it here. To ask about a point in a picture, use the button next to the picture.")) + "</p>";
+  box.innerHTML = th.length ? th.map(m => msgHtml(m, l.id)).join("") :
+    '<p class="mute small">' + (isAdmin() ? tt("Noch keine Nachrichten zu dieser Lektion.", "No messages about this lesson yet.") : tt("Zu einer bestimmten Stelle fragst du am besten direkt dort über die Sprechblase. Hier ist Platz für alles Allgemeine.", "To ask about a specific spot, tap the speech bubble right there. This is for anything general.")) + "</p>";
   const qs = document.getElementById("qstatus"); if (qs) qs.innerHTML = statusChip(l.id);
   const form = document.querySelector("#thread form.msgf");
   if (form && isAdmin()) { const has = !!form.querySelector(".qclose"); if (has !== threadState(l.id).open) { form.outerHTML = threadFormHtml(l.id); bindThreadForms(document.getElementById("thread"), () => paintThread(l)); } }
@@ -698,6 +762,7 @@ function paintLesson() {
     if (jt && !jt.dataset.bound) { jt.dataset.bound = "1"; jt.addEventListener("input", () => { jt.dataset.touched = "1"; }); }
   }
   paintThread(l);
+  paintAnnotations(l.id);
   if (l.widget === "checklist" && WIDGETS.checklist.refresh) WIDGETS.checklist.refresh();
 }
 
@@ -847,7 +912,7 @@ function renderFragen() {
       : tt("Frag alles, was unklar ist, oder halte einen Gedanken als Kommentar fest. Romeo antwortet hier und in der Lektion. Zu einem Bildpunkt fragst du am besten direkt beim Bild.", "Ask anything that's unclear, or keep a thought as a comment. Romeo replies here and in the lesson. To ask about a point in a picture, use the button next to the picture.")) + "</p></section>";
   if (!admin) h += '<section class="qnew"><label class="fld"><span>' + tt("Wozu?", "About what?") + '</span><select id="qlesson">' + opts + "</select></label>" + threadFormHtml("new") + "</section>";
   h += '<div class="qbar"><div class="wbtns" role="group"><button data-qf="open" aria-pressed="' + (QF === "open") + '">' + tt("Offen und neu", "Open and new") + '</button><button data-qf="all" aria-pressed="' + (QF === "all") + '">' + tt("Alle", "All") + " " + ids.length + "</button></div></div>";
-  h += shown.length ? '<div class="qlist">' + shown.map(id => '<section class="qthread" data-id="' + id + '"><div class="thead"><button class="qlink" ' + (id === GEN ? "" : 'data-go="lektion-' + id + '"') + ">" + esc(threadLabel(id)) + "</button>" + statusChip(id) + '</div><div class="msgs">' + threadOf(id).map(msgHtml).join("") + "</div>" + threadFormHtml(id, true) + "</section>").join("") + "</div>"
+  h += shown.length ? '<div class="qlist">' + shown.map(id => '<section class="qthread" data-id="' + id + '"><div class="thead"><button class="qlink" ' + (id === GEN ? "" : 'data-go="lektion-' + id + '"') + ">" + esc(threadLabel(id)) + "</button>" + statusChip(id) + '</div><div class="msgs">' + threadOf(id).map(m => msgHtml(m, id)).join("") + "</div>" + threadFormHtml(id, true) + "</section>").join("") + "</div>"
     : '<p class="empty">' + (QF === "open" ? (admin ? tt("Keine offenen Fragen. Unter Alle findest du jedes Gespräch.", "No open questions. All shows every conversation.") : tt("Nichts offen. Unter Alle findest du jedes Gespräch mit Romeo.", "Nothing open. All shows every conversation with Romeo.")) : tt("Noch keine Fragen oder Kommentare.", "No questions or comments yet.")) + "</p>";
   v.innerHTML = h; bindCommon(); updRing();
   v.querySelectorAll("[data-qf]").forEach(b => b.addEventListener("click", () => { QF = b.dataset.qf; renderFragen(); }));
