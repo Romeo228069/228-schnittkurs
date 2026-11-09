@@ -99,7 +99,7 @@ const kindOf = m => m.k || "q";
 const threadOf = id => (NT().threads || {})[id] || [];
 function aGroups(id) {
   const th = threadOf(id), genR = Math.max(0, ...th.filter(m => m.f === "r" && !m.a).map(m => m.at)), g = {};
-  th.forEach(m => { const x = g[m.a || ""] || (g[m.a || ""] = { q: 0, r: 0 }); if (m.f === "k" && kindOf(m) === "q") x.q = Math.max(x.q, m.at); if (m.f === "r") x.r = Math.max(x.r, m.at); });
+  th.forEach(m => { const x = g[m.a || ""] || (g[m.a || ""] = { q: 0, r: 0 }); if (m.f === "k" && kindOf(m) !== "c") x.q = Math.max(x.q, m.at); if (m.f === "r") x.r = Math.max(x.r, m.at); });
   const closed = (NT().closed || {})[id] || 0;
   Object.values(g).forEach(x => { x.open = x.q > 0 && x.q > Math.max(x.r, genR, closed); });
   return { g, closed };
@@ -124,11 +124,14 @@ function statusChip(id) {
   if (s.answered) return '<span class="qst ok">' + tt("Beantwortet", "Answered") + "</span>";
   return '<span class="qst">' + tt("Notiz", "Note") + "</span>";
 }
+const safeUrl = u => typeof u === "string" && /^https?:\/\/[^\s<>"]+$/i.test(u);
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
 function msgHtml(m, tid, noRef) {
   const who_ = m.f === "k" ? "Kamila" : "Romeo";
-  const kind = m.f === "k" ? (kindOf(m) === "c" ? tt("Notiz", "Note") : tt("Frage", "Question")) : tt("Antwort", "Reply");
+  const kind = m.f === "k" ? ({ c: tt("Notiz", "Note"), a: tt("Abgabe", "Hand-in") }[kindOf(m)] || tt("Frage", "Question")) : (m.a === "task" ? tt("Feedback", "Feedback") : tt("Antwort", "Reply"));
+  const link = safeUrl(m.l) ? '<a class="mlink" href="' + esc(m.l) + '" target="_blank" rel="noopener noreferrer">' + esc(hostOf(m.l)) + " ↗</a>" : "";
   const ref = noRef || !m.ref ? "" : m.a && tid ? '<button type="button" class="mref" data-goa="' + tid + "|" + esc(m.a) + '">' + T(m.ref) + " ›</button>" : '<span class="mref">' + T(m.ref) + "</span>";
-  return '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + who_ + " <em>" + kind + "</em> <time>" + when(m.at) + "</time></span>" + ref + "<p>" + esc(m.t).replace(/\n/g, "<br>") + "</p></div>";
+  return '<div class="msg ' + (m.f === "k" ? "k" : "r") + '"><span class="who">' + who_ + " <em>" + kind + "</em> <time>" + when(m.at) + "</time></span>" + ref + (m.t ? "<p>" + esc(m.t).replace(/\n/g, "<br>") + "</p>" : "") + link + "</div>";
 }
 
 /* ---------- Direkt fragen: Sprechblase an jedem Teil einer Lektion ---------- */
@@ -159,7 +162,7 @@ function openComposer(btn) {
   const admin = isAdmin(); let kind = "q";
   const f = document.createElement("form"); f.className = "icomp"; f.dataset.a = key;
   f.innerHTML = (admin ? "" : '<div class="wbtns kindseg" role="group"><button type="button" data-kind="q" aria-pressed="true">' + tt("Frage", "Question") + '</button><button type="button" data-kind="c" aria-pressed="false">' + tt("Notiz", "Note") + "</button></div>") +
-    '<label class="fld"><span class="vh">' + esc(plain(label)) + '</span><textarea rows="2" placeholder="' + (admin ? tt("Antwort oder Hinweis genau an dieser Stelle", "Reply or hint right at this spot") : tt("Was ist hier unklar?", "What's unclear here?")) + '"></textarea></label>' +
+    '<label class="fld"><span class="vh">' + esc(plain(label)) + '</span><textarea rows="2" placeholder="' + (admin ? (key === "task" ? tt("Feedback zur Abgabe, gern mit Timecode wie 0:12", "Feedback on the hand-in, ideally with a timecode like 0:12") : tt("Antwort oder Hinweis genau an dieser Stelle", "Reply or hint right at this spot")) : tt("Was ist hier unklar?", "What's unclear here?")) + '"></textarea></label>' +
     '<div class="irow"><button class="btn pri" type="submit">' + (admin ? tt("Senden", "Send") : tt("Fragen", "Ask")) + '</button><button class="btn ghost" type="button" data-x>' + tt("Abbrechen", "Cancel") + '</button><span class="mute small">' + (admin ? tt("Kamila sieht es genau hier.", "Kamila sees it right here.") : tt("Romeo sieht es genau hier.", "Romeo sees it right here.")) + "</span></div>";
   box.appendChild(f); btn.setAttribute("aria-expanded", "true");
   const fig = box.closest(".shot"), pt = box.closest("li") && box.closest("li").querySelector("button[data-i]"); if (fig && pt) setSpot(fig, +pt.dataset.i);
@@ -205,15 +208,16 @@ function threadFormHtml(id, compact) {
     (admin && threadState(id).open ? '<button type="button" class="btn ghost qclose">' + tt("Als erledigt markieren", "Mark as resolved") + "</button>" : "") +
     "</form>";
 }
-function sendMsg(id, t, kind, ref, anchor) {
+function sendMsg(id, t, kind, ref, anchor, extra) {
   if (!canWrite()) return false;
   const f = me() === "romeo" ? "r" : "k";
   const msg = { f, t, at: now() };
   if (f === "k") msg.k = kind || "q";
   if (ref) msg.ref = ref;
   if (anchor) msg.a = anchor;
+  if (extra) Object.assign(msg, extra);
   store.write("notes", { threads: { [id]: union(msg) }, read: { [f]: { [id]: now() } } });
-  if (f === "k") { learnerSet({}, null); store.log(kind === "c" ? "comment" : "msg", id === GEN ? null : id, ref ? { ref: plain(ref).slice(0, 80) } : null); }
+  if (f === "k") { learnerSet({}, null); store.log(kind === "c" ? "comment" : kind === "a" ? "abgabe" : "msg", id === GEN ? null : id, ref ? { ref: plain(ref).slice(0, 80) } : null); }
   return true;
 }
 function bindThreadForms(scope, after) {
@@ -494,18 +498,21 @@ function renderHome() {
   const msgs = allThreads().filter(id => unreadFor("kamila", id));
   const doneN = list.filter(l => isDone(l.id)).length;
   let h = '<section class="hero"><span class="label">' + tt("DaVinci Resolve 21 für Einsteiger", "DaVinci Resolve 21 for beginners") + "</span><h1>" + tt("Kamila lernt<br>schneiden.", "Kamila learns<br>to edit.") + "</h1>" +
-    "<p>" + tt(list.length + " Lektionen vom leeren Ordner bis zum fertigen Export, Seite für Seite durch Resolve. Romeo erklärt, du probierst aus, und hier schlägst du später alles nach.", list.length + " lessons from an empty folder to the finished export, page by page through Resolve. Romeo explains, you try it out, and later you look everything up here.") + "</p></section>";
+    "<p>" + tt(list.length + " Lektionen vom leeren Ordner bis zum fertigen Film, Seite für Seite durch Resolve, und danach Teil 2 für den Arbeitsalltag. Romeo erklärt, du probierst aus, und hier schlägst du später alles nach.", list.length + " lessons from an empty folder to the finished film, page by page through Resolve, then part 2 for everyday work. Romeo explains, you try it out, and you can look everything up here later.") + "</p></section>";
   if (msgs.length) h += '<div class="cont msgcard"><div class="ct"><span class="label">' + tt("Romeo hat dir geantwortet", "Romeo replied to you") + "</span><b>" + msgs.map(id => esc(threadLabel(id))).join(", ") + '</b></div><button class="btn sec" data-go="fragen">' + tt("Lesen", "Read") + "</button></div>";
   const lab = all ? tt("Alles geschafft", "All done") : la && resume === la ? tt("Weiter, wo du warst", "Pick up where you left off") : doneN ? tt("Weiter mit", "Continue with") : tt("Los geht es mit", "Start with");
   h += '<div class="cont"><div class="ct"><span class="label">' + lab + "</span><b>" + (all ? tt("Alle Lektionen abgeschlossen. Zeit für den nächsten Film.", "All lessons completed. Time for the next film.") : tt("Lektion ", "Lesson ") + resume.n + ": " + esc(resume.title)) + '</b><span class="mute num">' + tt(doneN + " von " + list.length + " abgeschlossen", doneN + " of " + list.length + " completed") + (left ? tt(", noch rund ", ", about ") + fmtMin(left) + tt("", " to go") : "") + (la ? tt(". Zuletzt geöffnet ", ". Last opened ") + when(P().last.at) : "") + "</span></div>" +
     '<button class="btn pri" data-go="lektion-' + (all ? list[list.length - 1].id : resume.id) + '">' + (all ? tt("Abschluss ansehen", "See the final lesson") : tt("Lektion starten", "Start lesson")) + "</button></div>";
   h += lernwegHtml(list, false);
+  h += '<div class="cont mat"><div class="ct"><span class="label">' + tt("Übungsmaterial", "Practice footage") + "</span><span class=\"mute small\">" + tt("Eigene Handyclips gehen immer. Echte Clips mit Interview, B Roll und Musik gibt es kostenlos von Blackmagic zum Buch The Beginner\u2019s Guide to DaVinci Resolve 20, dort unter Lesson Files.", "Your own phone clips always work. Real clips with an interview, B roll and music are free from Blackmagic with the book The Beginner\u2019s Guide to DaVinci Resolve 20, under Lesson Files.") + '</span></div><a class="btn sec" href="https://www.blackmagicdesign.com/products/davinciresolve/training" target="_blank" rel="noopener noreferrer">' + tt("Zur Trainingsseite", "Training page") + " ↗</a></div>";
   h += timelineHtml(list, all ? null : resume.id, tt("Dein Kurs als Timeline", "Your course as a timeline"));
   h += modulesHtml(list, all ? null : resume.id);
   v.innerHTML = h; bindCommon(); updRing();
 }
 function lernwegHtml(list, admin) {
   const d = daysHtml(28), rev = reviewList(list);
+  const empty = !d.total && !list.some(l => conf(l.id) || journal(l.id) || isDone(l.id)) && !allThreads().length;
+  if (empty) return '<section class="lw lw0" aria-label="' + tt("Lernweg", "Learning path") + '"><span class="label">' + (admin ? tt("Kamilas Lernweg", "Kamila's learning path") : tt("Dein Lernweg", "Your learning path")) + '</span><p class="mute small">' + (admin ? tt("Noch leer. Sobald Kamila loslegt, stehen hier ihre Lerntage, Einschätzungen, ihr Fazit je Lektion und was sie wiederholen sollte.", "Still empty. Once Kamila starts, her learning days, self assessments, takeaways and what she should review show up here.") : tt("Sobald du loslegst, siehst du hier deine Lerntage, wie sicher du dich fühlst, was du mitnimmst und was du wiederholen solltest.", "Once you start, you'll see your learning days here, how confident you feel, your takeaways and what to review.")) + "</p></section>";
   const js = list.filter(l => journal(l.id)).sort((a, b) => journal(b.id).at - journal(a.id).at);
   const cs = [3, 2, 1].map(v => list.filter(l => conf(l.id) === v).length);
   const openQ = allThreads().filter(id => threadState(id).open).length;
@@ -515,14 +522,14 @@ function lernwegHtml(list, admin) {
     '<div class="lwstats num"><span>' + confChip(3) + " " + cs[0] + "</span><span>" + confChip(2) + " " + cs[1] + "</span><span>" + confChip(1) + " " + cs[2] + '</span><button class="lwq" data-go="fragen">' + tt(openQ + (openQ === 1 ? " offene Frage" : " offene Fragen"), openQ + (openQ === 1 ? " open question" : " open questions")) + "</button></div>" +
     '<div class="lwcols"><div><span class="label">' + tt("Zum Wiederholen", "To review") + "</span>" +
     (rev.length ? '<div class="evl">' + rev.map(l => '<button class="evr" data-go="lektion-' + l.id + '"><span>' + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + "<small>" + (conf(l.id) === 1 ? tt("als unsicher markiert", "marked as unsure") : tt("Check beim ersten Versuch falsch", "check wrong the first time")) + "</small></span>" + confChip(conf(l.id)) + "</button>").join("") + "</div>" : '<p class="mute small">' + (admin ? tt("Nichts offen.", "Nothing open.") : tt("Nichts offen. Wenn du dich in einer Lektion unsicher fühlst, markier es dort, dann taucht sie hier auf.", "Nothing open. If you feel unsure in a lesson, mark it there and it shows up here.")) + "</p>") +
-    '</div><div><span class="label">' + tt("Notizen", "Notes") + "</span>" +
-    (js.length ? '<div class="evl">' + js.slice(0, admin ? 50 : 4).map(l => '<button class="evr jn" data-go="lektion-' + l.id + '"><span>' + esc(journal(l.id).t) + "<small>" + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + ", " + when(journal(l.id).at) + "</small></span></button>").join("") + "</div>" : '<p class="mute small">' + (admin ? tt("Noch keine Notizen.", "No notes yet.") : tt("Am Ende jeder Lektion kannst du festhalten, was du mitnimmst.", "At the end of each lesson you can note what you take away.")) + "</p>") +
+    '</div><div><span class="label">' + tt("Mitgenommen", "Takeaways") + "</span>" +
+    (js.length ? '<div class="evl">' + js.slice(0, admin ? 50 : 4).map(l => '<button class="evr jn" data-go="lektion-' + l.id + '"><span>' + esc(journal(l.id).t) + "<small>" + tt("Lektion ", "Lesson ") + l.n + ": " + esc(l.title) + ", " + when(journal(l.id).at) + "</small></span></button>").join("") + "</div>" : '<p class="mute small">' + (admin ? tt("Noch kein Fazit.", "No takeaways yet.") : tt("Am Ende jeder Lektion kannst du festhalten, was du mitnimmst.", "At the end of each lesson you can note what you take away.")) + "</p>") +
     "</div></div></section>";
 }
 
 function evText(e, l) {
   const n = l ? l.n : "?", s = e.s != null ? e.s : "?";
-  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: [l ? "hat eine Frage zu Lektion " + n + " gestellt" : "hat eine allgemeine Frage gestellt", l ? "asked a question about lesson " + n : "asked a general question"], comment: [l ? "hat in Lektion " + n + " eine Notiz hinterlassen" : "hat eine Notiz hinterlassen", l ? "left a note in lesson " + n : "left a note"], conf: ["hat Lektion " + n + " als " + (["", "unsicher", "geht so", "sitzt"][e.v || 0] || "") + " eingeschätzt", "rated lesson " + n + " as " + (["", "unsure", "so so", "got it"][e.v || 0] || "")], journal: ["hat ihr Fazit zu Lektion " + n + " geschrieben", "wrote her takeaway on lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
+  const D = { open: ["hat Lektion " + n + " geöffnet", "opened lesson " + n], done: ["hat Lektion " + n + " abgeschlossen", "completed lesson " + n], undone: ["hat Lektion " + n + " wieder geöffnet", "reopened lesson " + n], ex: ["hat die Übung in Lektion " + n + " gemacht", "did the exercise in lesson " + n], quiz_ok: ["hat den Check in Lektion " + n + " richtig beantwortet", "answered the check in lesson " + n + " correctly"], quiz_bad: ["hat den Check in Lektion " + n + " falsch beantwortet", "got the check in lesson " + n + " wrong"], msg: [l ? "hat eine Frage zu Lektion " + n + " gestellt" : "hat eine allgemeine Frage gestellt", l ? "asked a question about lesson " + n : "asked a general question"], comment: [l ? "hat in Lektion " + n + " eine Notiz hinterlassen" : "hat eine Notiz hinterlassen", l ? "left a note in lesson " + n : "left a note"], abgabe: ["hat die Übung in Lektion " + n + " abgegeben", "handed in the exercise in lesson " + n], conf: ["hat Lektion " + n + " als " + (["", "unsicher", "geht so", "sitzt"][e.v || 0] || "") + " eingeschätzt", "rated lesson " + n + " as " + (["", "unsure", "so so", "got it"][e.v || 0] || "")], journal: ["hat ihr Fazit zu Lektion " + n + " geschrieben", "wrote her takeaway on lesson " + n], trainer: ["hat im Shortcut Training " + s + " von 10 geschafft", "scored " + s + " of 10 in shortcut training"] }[e.type];
   return D ? tt(D[0], D[1]) + ((e.type === "msg" || e.type === "comment") && e.ref ? ", " + tt("bei ", "at ") + esc(e.ref) : "") : esc(e.type);
 }
 function dashboardHtml() {
@@ -588,11 +595,18 @@ function renderLesson(id) {
   const ks = (l.keys || []).map(scFind).filter(Boolean);
   if (ks.length) h += '<div class="sec"><span class="label">' + tt("Shortcuts in dieser Lektion", "Shortcuts in this lesson") + '</span><div class="klist">' + ks.map(s => '<div class="krow a">' + kbd(s.k) + '<span class="f">' + T(scF(s)) + "</span>" + askBtn("k:" + s.k, "[[" + s.k + "]] " + excerpt(scF(s))) + annBox("k:" + s.k) + "</div>").join("") + "</div></div>";
   if (admin && l.romeo) h += '<div class="sec romeo"><span class="label">' + tt("Für dich, so erklärst du es", "For you, how to explain it") + "</span><p>" + T(l.romeo) + "</p></div>";
-  if (l.task) h += '<div class="sec task"><div class="shead"><span class="label">' + tt("Übung", "Exercise") + "</span>" + askBtn("task", tt("Übung", "Exercise")) + "</div><p>" + T(l.task) + "</p>" + annBox("task") + '<button class="chk" role="checkbox" aria-checked="false" id="exchk"' + (admin ? " disabled" : "") + '><span class="bx">' + CHECK + "</span>" + (admin ? tt("Kamila hat die Übung gemacht", "Kamila did the exercise") : tt("Übung gemacht", "Exercise done")) + "</button></div>";
+  if (l.task) h += '<div class="sec task"><div class="shead"><span class="label">' + tt("Übung", "Exercise") + "</span>" + askBtn("task", tt("Übung", "Exercise")) + "</div><p>" + T(l.task) + "</p>" +
+    '<div class="trow"><button class="chk" role="checkbox" aria-checked="false" id="exchk"' + (admin ? " disabled" : "") + '><span class="bx">' + CHECK + "</span>" + (admin ? tt("Kamila hat die Übung gemacht", "Kamila did the exercise") : tt("Übung gemacht", "Exercise done")) + "</button>" +
+    (admin ? '<button class="btn sec" type="button" id="fbbtn">' + tt("Feedback geben", "Give feedback") + "</button>" : '<button class="btn sec" type="button" id="abgbtn" aria-expanded="false">' + tt("Ergebnis zeigen", "Show your result") + "</button>") + "</div>" +
+    (admin ? "" : '<form class="abgf" id="abgf" hidden novalidate><p class="mute small">' + tt("Zeig Romeo, was du gemacht hast: ein Link zu deinem Export oder einem Screenshot der Timeline, zum Beispiel aus Google Drive, WeTransfer oder ein nicht gelistetes YouTube Video. Dazu ein Satz.", "Show Romeo what you did: a link to your export or a screenshot of your timeline, for example from Google Drive, WeTransfer or an unlisted YouTube video. Plus one sentence.") + "</p>" +
+      '<label class="fld"><span>Link</span><input type="url" id="abgl" inputmode="url" autocomplete="off" placeholder="https://"></label>' +
+      '<label class="fld"><span>' + tt("Was hast du gemacht, wo hängst du?", "What did you do, where are you stuck?") + '</span><textarea id="abgt" rows="2"></textarea></label>' +
+      '<div class="irow"><button class="btn pri" type="submit">' + tt("Abgeben", "Hand in") + '</button><button class="btn ghost" type="button" id="abgx">' + tt("Abbrechen", "Cancel") + '</button><span class="mute small" id="abgerr" role="alert"></span></div></form>') +
+    annBox("task") + "</div>";
   if (l.quiz && l.quiz.q) h += '<div class="sec quiz" id="quiz"><div class="shead"><span class="label">Check</span>' + askBtn("quiz", "Check") + "</div>" + annBox("quiz") + '<p class="q">' + T(l.quiz.q) + "</p>" + l.quiz.a.map((a, i) => '<button class="qopt" data-i="' + i + '"' + (admin ? " disabled" : "") + '><span class="ltr">' + "ABC"[i] + "</span><span>" + T(a) + "</span></button>").join("") + '<p class="qwhy" id="qwhy" hidden></p></div>';
   if (!admin) h += '<div class="sec reflect" id="reflect"><span class="label">' + tt("Wie sicher fühlst du dich?", "How confident do you feel?") + '</span><div class="wbtns confseg" role="group">' + CONF().map(c => '<button type="button" data-conf="' + c[0] + '" aria-pressed="false">' + c[1] + "</button>").join("") + "</div>" +
-    '<label class="fld"><span>' + tt("Deine Notiz zur Lektion", "Your note on this lesson") + " <em>" + tt("Romeo sieht sie", "Romeo can see it") + '</em></span><textarea id="jt" rows="2" placeholder="' + tt("Was nimmst du mit? Was war schwer?", "What do you take away? What was hard?") + '"></textarea></label>' +
-    '<div class="jrow"><button type="button" class="btn sec" id="jsave">' + tt("Notiz speichern", "Save note") + '</button><span class="mute small" id="jstate"></span></div></div>';
+    '<label class="fld"><span>' + tt("Dein Fazit zur Lektion", "Your takeaway from this lesson") + " <em>" + tt("Romeo sieht es", "Romeo can see it") + '</em></span><textarea id="jt" rows="2" placeholder="' + tt("Was nimmst du mit? Was war schwer?", "What do you take away? What was hard?") + '"></textarea></label>' +
+    '<div class="jrow"><button type="button" class="btn sec" id="jsave">' + tt("Fazit speichern", "Save takeaway") + '</button><span class="mute small" id="jstate"></span></div></div>';
   h += '<div class="sec thread" id="thread"><div class="thead"><span class="label">' + (admin ? tt("Alle Fragen und Notizen dieser Lektion", "All questions and notes in this lesson") : tt("Allgemeine Frage an Romeo", "General question for Romeo")) + '</span><span id="qstatus"></span></div><div class="msgs" id="msgs"></div>' + threadFormHtml(id) + "</div>";
   h += '<div class="finish">' + (admin ? '<button class="chk" role="checkbox" aria-checked="false" id="donebtn"><span class="bx">' + CHECK + "</span>" + tt("Für Kamila als abgeschlossen markieren", "Mark as completed for Kamila") + "</button>" : '<button class="btn pri" id="donebtn">' + tt("Lektion abschließen", "Complete lesson") + "</button>") +
     '<div class="pn"><button ' + (prev ? 'data-go="lektion-' + prev.id + '"' : "disabled") + "><small>" + tt("Zurück", "Back") + "</small><span>" + (prev ? esc(prev.title) : "") + "</span></button><button " + (next ? 'data-go="lektion-' + next.id + '"' : 'data-go="kurs"') + "><small>" + (next ? tt("Weiter", "Next") : tt("Fertig", "Done")) + "</small><span>" + (next ? esc(next.title) : tt("Zur Übersicht", "To the overview")) + "</span></button></div></div></div>";
@@ -602,6 +616,26 @@ function renderLesson(id) {
     document.getElementById("editbtn").addEventListener("click", () => { editing = id; renderLesson(id); window.scrollTo(0, 0); });
     document.getElementById("hidebtn").addEventListener("click", () => { store.write("course", { lessons: { [id]: { hidden: l.hidden ? DELETE : true } } }); toast(l.hidden ? tt("Lektion ist für Kamila wieder sichtbar.", "The lesson is visible to Kamila again.") : tt("Lektion ist für Kamila ausgeblendet.", "The lesson is hidden from Kamila.")); });
   }
+  const abgbtn = document.getElementById("abgbtn"), abgf = document.getElementById("abgf");
+  if (abgbtn && abgf) {
+    const toggle = on => { abgf.hidden = !on; abgbtn.setAttribute("aria-expanded", String(on)); if (on) abgf.querySelector("#abgl").focus({ preventScroll: false }); };
+    abgbtn.addEventListener("click", () => toggle(abgf.hidden));
+    abgf.querySelector("#abgx").addEventListener("click", () => toggle(false));
+    abgf.addEventListener("submit", e => {
+      e.preventDefault();
+      const err = abgf.querySelector("#abgerr"), li = abgf.querySelector("#abgl"), ta = abgf.querySelector("#abgt");
+      let link = li.value.trim(); const t = ta.value.trim();
+      if (link && !/^https?:\/\//i.test(link)) link = "https://" + link;
+      if (link && !safeUrl(link)) { err.textContent = tt("Der Link sieht nicht richtig aus.", "That link doesn't look right."); li.focus(); return; }
+      if (!link && !t) { err.textContent = tt("Ein Link oder ein Satz reicht.", "A link or one sentence is enough."); li.focus(); return; }
+      if (!sendMsg(id, t, "a", tt("Übung", "Exercise"), "task", link ? { l: link } : null)) return;
+      if (!exDone(id)) learnerSet({ ex: { [id]: now() } }, null, id);
+      li.value = ""; ta.value = ""; err.textContent = ""; toggle(false); paintLesson();
+      toast(tt("Abgegeben. Romeo gibt dir genau hier Feedback.", "Handed in. Romeo will give you feedback right here."));
+    });
+  }
+  const fbbtn = document.getElementById("fbbtn");
+  if (fbbtn) fbbtn.addEventListener("click", () => { const b = document.querySelector('#view .ask[data-ask="task"]'); if (b) { if (b.getAttribute("aria-expanded") !== "true") openComposer(b); const ta = document.querySelector("#view .icomp textarea"); if (ta) ta.focus(); } });
   const ex = document.getElementById("exchk");
   if (ex && !admin) ex.addEventListener("click", () => { const on = !exDone(id); learnerSet({ ex: { [id]: on ? now() : DELETE } }, on ? "ex" : null, id); paintLesson(); });
   document.getElementById("donebtn").addEventListener("click", () => {
@@ -630,7 +664,7 @@ function renderLesson(id) {
       if (!canWrite()) return;
       learnerSet({ journal: { [id]: t ? { t, at: now() } : DELETE } }, null, id);
       if (t && me() === "kamila") store.log("journal", id);
-      document.getElementById("jstate").textContent = t ? tt("Gespeichert", "Saved") : tt("Notiz gelöscht", "Note removed");
+      document.getElementById("jstate").textContent = t ? tt("Gespeichert", "Saved") : tt("Fazit gelöscht", "Takeaway removed");
     });
   }
   if (l.widget && WIDGETS[l.widget]) WIDGETS[l.widget](document.getElementById("wg"), l, {
@@ -653,10 +687,10 @@ function shotsHtml(l) {
   return '<div class="sec shots">' + l.shots.map((s, si) => {
     const [W, H] = IMG[s.img];
     return '<figure class="shot" data-img="' + s.img + '">' +
-      '<figcaption class="label">' + T(lab(s)) + "</figcaption>" +
+      '<figcaption class="shcap"><span class="label">' + T(lab(s)) + '</span><button class="shbig" aria-label="' + tt("Bild groß ansehen", "View image large") + '"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></figcaption>' +
       '<div class="shimg" style="aspect-ratio:' + W + "/" + H + '"><img src="img/' + s.img + '.jpg" width="' + W + '" height="' + H + '" alt="' + esc(lab(s).replace(/\[\[|\]\]/g, "")) + '"' + (si ? ' loading="lazy"' : "") + ">" +
       s.spots.map((p, i) => '<button class="spot' + (i ? "" : " on") + '" data-i="' + i + '" style="left:' + p[0][0] + "%;top:" + p[0][1] + "%;width:" + p[0][2] + "%;height:" + p[0][3] + '%" aria-label="' + tt("Punkt ", "Point ") + (i + 1) + '"><b>' + (i + 1) + "</b></button>").join("") +
-      '<button class="shbig" aria-label="' + tt("Bild groß ansehen", "View image large") + '"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
+      '</div>' +
       '<div class="shdet"><div class="lens" aria-hidden="true"></div><ol class="shlist">' +
       s.spots.map((p, i) => { const k = "p:" + s.img + ":" + i; return '<li class="a"><button data-i="' + i + '" aria-pressed="' + !i + '"><b>' + (i + 1) + "</b><span>" + T(EN() ? p[2] : p[1]) + "</span></button>" + askBtn(k, excerpt(lab(s)) + tt(", Punkt ", ", point ") + (i + 1)) + annBox(k) + "</li>"; }).join("") +
       "</ol></div></figure>";
@@ -752,7 +786,7 @@ function paintLesson() {
       "<div><dt>" + tt("Übung", "Exercise") + "</dt><dd>" + (exDone(l.id) ? tt("gemacht ", "done ") + when(p.ex[l.id]) : tt("offen", "open")) + "</dd></div>" +
       "<div><dt>Check</dt><dd>" + (q ? (q.ok ? tt("beim ersten Versuch richtig", "right first time") : tt("beim ersten Versuch falsch", "wrong first time")) : tt("offen", "open")) + "</dd></div>" +
       "<div><dt>" + tt("Selbsteinschätzung", "Self assessment") + "</dt><dd>" + (conf(l.id) ? confChip(conf(l.id)) : tt("offen", "open")) + "</dd></div></dl>" +
-      (journal(l.id) ? '<p class="jnote"><span class="label">' + tt("Ihre Notiz", "Her note") + "</span>" + esc(journal(l.id).t) + ' <span class="mute small">' + when(journal(l.id).at) + "</span></p>" : "");
+      (journal(l.id) ? '<p class="jnote"><span class="label">' + tt("Ihr Fazit", "Her takeaway") + "</span>" + esc(journal(l.id).t) + ' <span class="mute small">' + when(journal(l.id).at) + "</span></p>" : "");
   }
   const rf = document.getElementById("reflect");
   if (rf) {
@@ -812,14 +846,14 @@ function bindEdit(l) {
 
 /* ---------- Shortcuts ---------- */
 let F = { g: "Alle", q: "", must: false };
-const GROUPS = ["Alle", "Seiten", "Projekt", "Ansicht", "Wiedergabe", "Markieren", "Einsetzen", "Schneiden", "Trimmen", "Effekte", "Ton", "Color", "Fusion"];
+const GROUPS = ["Alle", "Seiten", "Projekt", "Ansicht", "Wiedergabe", "Markieren", "Einsetzen", "Schneiden", "Trimmen", "Multicam", "Effekte", "Ton", "Color", "Fusion"];
 const KB_DE = [["Q", "W", "E", "R", "T", "Z", "U", "I", "O", "P", "Ü"], ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Ö", "Ä"], ["Y", "X", "C", "V", "B", "N", "M", "comma", "period", "-"]];
 const KB_EN = [["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "["], ["A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'"], ["Z", "X", "C", "V", "B", "N", "M", "comma", "period", "/"]];
 let TR = null;
 function renderShortcuts(keep) {
   cur = { view: "shortcuts", id: null };
   const v = document.getElementById("view"), tr = P().trainer, rows = EN() ? KB_EN : KB_DE;
-  let h = '<section class="phead"><span class="label">Shortcuts</span><h1>' + tt("Die Tasten der Profis.", "The keys the pros use.") + "</h1><p>" + tt("Die Standardbelegung von DaVinci Resolve 21, abgeglichen mit dem offiziellen Handbuch der Version 21.1. Was als Pflicht markiert ist, solltest du ohne Nachdenken können.", "The default layout of DaVinci Resolve 21, checked against the official manual of version 21.1. Anything marked as essential should become second nature.") + '</p><div class="ostog"><span class="mute small">' + tt("Tasten anzeigen für", "Show keys for") + "</span>" + osSeg("ospage") + "</div></section>";
+  let h = '<section class="phead"><span class="label">Shortcuts</span><h1>' + tt("Die Tasten der Profis.", "The keys the pros use.") + "</h1><p>" + tt("Die Standardbelegung von DaVinci Resolve 21, abgeglichen mit dem offiziellen Handbuch der Version 21.1. Die 18 als Pflicht markierten sind die für die erste Woche. Die solltest du ohne Nachdenken können, der Rest kommt mit der Zeit.", "The default layout of DaVinci Resolve 21, checked against the official manual of version 21.1. The 18 marked as essential are the ones for your first week. Those should become second nature, the rest comes with time.") + '</p><div class="ostog"><span class="mute small">' + tt("Tasten anzeigen für", "Show keys for") + "</span>" + osSeg("ospage") + "</div></section>";
   h += '<div class="kb" aria-label="' + tt("Tastatur mit belegten Tasten", "Keyboard with assigned keys") + '">' +
     rows.map((r, ri) => '<div class="kbr r' + (ri + 1) + '">' + (ri ? '<span class="kk blank"></span>' : "") + r.map(k => { const hits = SC.filter(s => s.k === k); const lab = k === "comma" ? "," : k === "period" ? "." : k; return hits.length ? '<button class="kk on" data-k="' + k + '" aria-pressed="false">' + lab + "</button>" : '<span class="kk">' + esc(lab) + "</span>"; }).join("") + (ri ? '<span class="kk blank"></span>' : "") + "</div>").join("") +
     '<div class="kbr r4"><span></span><button class="kk on sp" data-k="space" aria-pressed="false">' + tt("Leertaste", "Space") + '</button><span></span></div>' +

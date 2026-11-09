@@ -127,7 +127,7 @@ body.is-login{background:var(--bg)}
 .shots{display:grid;gap:34px}
 @media (min-width:900px){.col .shots{width:min(1040px,calc(100vw - 64px));margin-left:calc(50% - min(520px,calc(50vw - 32px)))}}
 .shot{margin:0;display:grid;gap:12px}
-.shot figcaption{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.shot figcaption{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.shot figcaption .label{min-width:0}
 .shimg{position:relative;width:100%;max-width:100%;border-radius:12px;overflow:hidden;background:#0a0a0b;box-shadow:0 0 0 1px var(--line)}
 .shimg img{display:block;width:100%;height:auto}
 .spot{position:absolute;border:1.5px solid rgba(255,255,255,.55);border-radius:6px;background:rgba(255,255,255,.04);padding:0;cursor:pointer;transition:border-color .15s linear,background .15s linear,box-shadow .2s var(--ease)}
@@ -135,7 +135,7 @@ body.is-login{background:var(--bg)}
 .spot:hover{border-color:#fff}
 .spot.on{border:2px solid var(--mc);background:color-mix(in srgb,var(--mc) 14%,transparent);box-shadow:0 0 0 4000px rgba(0,0,0,.28);z-index:2}
 .spot.on b{background:var(--mc);color:var(--ink);transform:translate(-35%,-35%) scale(1.12)}
-.shbig{position:absolute;right:8px;bottom:8px;z-index:3;width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.shbig{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--card2);color:var(--fg);display:grid;place-items:center;cursor:pointer;transition:background .15s linear,transform .25s var(--spring)}.shbig:hover{background:var(--key)}.shbig:active{transform:scale(.92)}
 .shbig svg{width:18px;height:18px}
 .shdet{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:14px;align-items:start}
 @media (max-width:700px){.shdet{grid-template-columns:minmax(0,1fr)}}
@@ -249,3 +249,21 @@ button.mref{cursor:pointer;color:var(--mute)}
 button.mref:hover{color:var(--fg)}
 @media (max-width:420px){.krow.a{grid-template-columns:minmax(0,auto) minmax(0,1fr) 32px;gap:10px}.shlist .ann{margin-left:0}.steps .ann,.rules .ann,.tips .ann{grid-column:1/-1}.icomp .fld textarea{min-height:80px}}
 @media (prefers-reduced-motion:reduce){.icomp,.flash{animation:none}}
+
+/* Abgabe je Übung */
+.trow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px}
+.trow .btn{min-height:40px}
+.abgf{display:grid;gap:10px;padding:14px;border-radius:14px;background:var(--card2);animation:pop .22s var(--spring)}
+.abgf p{margin:0}
+.abgf .irow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.task .ann .msg{background:var(--card2)}
+.task .ann .msg.r{background:color-mix(in srgb,#e6c44a 14%,var(--card2))}
+.mlink{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.88rem;font-weight:600;color:var(--link);text-decoration:none;overflow-wrap:anywhere}
+.mlink:hover{text-decoration:underline}
+.lw0{display:grid;gap:6px}
+.lw0 p{margin:0}
+.cont.mat .ct{display:grid;gap:6px}
+.cont.mat .ct .small{line-height:1.5}
+a.btn{text-decoration:none}
+.lw + .cont.mat{margin-top:-20px}
+.cont.mat{margin-bottom:34px}

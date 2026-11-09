@@ -155,10 +155,10 @@ WIDGETS.jl = (el) => {
 };
 
 WIDGETS.lgg = (el) => {
-  const w = wbox(el, tt("Lift, Gamma und Gain mit Waveform", "Lift, Gamma and Gain with waveform"), '<div class="lgg"><div style="display:grid;gap:8px;min-width:0"><canvas id="img" width="320" height="180" aria-label="' + tt("Testbild", "Test image") + '"></canvas><div class="wave"><canvas id="wav" width="320" height="130" aria-label="Waveform"></canvas><span class="gl" style="top:4%">100</span><span class="gl" style="top:50%">50</span><span class="gl" style="top:95%">0</span></div></div>' +
+  const w = wbox(el, tt("Lift, Gamma und Gain mit Waveform", "Lift, Gamma and Gain with waveform"), '<div class="lgg"><div style="display:grid;gap:8px;min-width:0"><canvas id="img" width="320" height="180" aria-label="' + tt("Testbild", "Test image") + '"></canvas><div class="wave"><canvas id="wav" width="320" height="130" aria-label="Waveform"></canvas><span class="gl" style="top:4%">1023</span><span class="gl" style="top:50%">512</span><span class="gl" style="top:95%">0</span></div></div>' +
     '<div style="display:grid;gap:6px;min-width:0">' + [["lift", "Lift", -.3, .3, .005, 0], ["gamma", "Gamma", -.5, .5, .01, 0], ["gain", "Gain", .5, 1.7, .01, 1], ["temp", "Temp", -1, 1, .02, 0], ["sat", tt("Sättigung", "Saturation"), 0, 2, .02, 1]].map(s => '<label class="sl"><span>' + s[1] + '</span><input type="range" id="s_' + s[0] + '" min="' + s[2] + '" max="' + s[3] + '" step="' + s[4] + '" value="' + s[5] + '"><output id="o_' + s[0] + '"></output></label>').join("") +
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="badge" id="lstat"></span><button class="btn sec" id="lreset" style="min-height:38px;padding:0 14px;font-size:.82rem">' + tt("Zurücksetzen", "Reset") + "</button></div></div></div>" +
-    '<p class="wcap">' + tt("Das Testbild ist flau wie Log Material und zu warm. Ziel: Der Graukeil unten reicht im Waveform von knapp über 0 bis knapp unter 100, und der Farbstich ist weg.", "The test image is flat like log footage and too warm. Goal: the grey scale at the bottom spans from just above 0 to just below 100 in the waveform, and the color cast is gone.") + "</p>");
+    '<p class="wcap">' + tt("Das Testbild ist flau wie Log Material und zu warm. Ziel: Der Graukeil unten reicht im Waveform von knapp über 0 bis knapp unter 1023, wie in Resolve, und der Farbstich ist weg.", "The test image is flat like log footage and too warm. Goal: the grey scale at the bottom spans from just above 0 to just below 1023 in the waveform, as in Resolve, and the color cast is gone.") + "</p>");
   const ci = w.querySelector("#img"), cw = w.querySelector("#wav"), xi = ci.getContext("2d"), xw = cw.getContext("2d");
   const W = 320, H = 180, WH = 130; const base = new Float32Array(W * H * 3);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -198,11 +198,11 @@ WIDGETS.lgg = (el) => {
       else { wav.data[o] = 8; wav.data[o + 1] = 8; wav.data[o + 2] = 10; wav.data[o + 3] = 255; }
     }
     xw.putImageData(wav, 0, 0);
-    const lo = Math.round(rampMin * 100), hi = Math.round(rampMax * 100);
+    const lo = Math.round(rampMin * 1023), hi = Math.round(rampMax * 1023);
     const cast = Math.abs(temp + .6) >= .35;
     const good = rampMin >= 0 && rampMin <= .06 && rampMax >= .9 && rampMax <= .995 && !cast;
     stat.className = "badge" + (good ? " good" : "");
-    stat.textContent = (good ? tt("Passt. ", "Spot on. ") : "") + tt("Schwarz ", "Black ") + lo + " %, " + tt("Weiß ", "White ") + hi + " %" + (cast ? tt(", Farbstich", ", color cast") : "");
+    stat.textContent = (good ? tt("Passt. ", "Spot on. ") : "") + tt("Schwarz ", "Black ") + lo + ", " + tt("Weiß ", "White ") + hi + (cast ? tt(", Farbstich", ", color cast") : "");
   }
   ids.forEach(k => w.querySelector("#s_" + k).addEventListener("input", draw));
   w.querySelector("#lreset").addEventListener("click", () => { [["lift", 0], ["gamma", 0], ["gain", 1], ["temp", 0], ["sat", 1]].forEach(([k, v]) => w.querySelector("#s_" + k).value = v); draw(); });
