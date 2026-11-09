@@ -251,7 +251,9 @@ const conf = id => ((P().conf || {})[id] || {}).v || 0;
 const journal = id => (P().journal || {})[id];
 function reviewList(list) { return list.filter(l => conf(l.id) === 1 || (quizRes(l.id) && !quizRes(l.id).ok && conf(l.id) !== 3)); }
 function daysHtml(n) {
-  const days = P().days || {}, out = [], t = new Date(); let cnt = 0;
+  const days = Object.assign({}, P().days || {}), out = [], t = new Date(); let cnt = 0;
+  // Auch Tage zählen, an denen Kamila nur Lektionen geöffnet oder Übungen gemacht hat
+  [P().seen, P().done, P().ex].forEach(o => Object.values(o || {}).forEach(ts => { if (typeof ts === "number") days[dayKey(new Date(ts))] = true; }));
   for (let i = n - 1; i >= 0; i--) { const d = new Date(t); d.setDate(t.getDate() - i); const k = dayKey(d), on = !!days[k]; if (on) cnt++; out.push('<i class="' + (on ? "on" : "") + (i === 0 ? " today" : "") + '" title="' + k + '"></i>'); }
   return { html: '<div class="days" aria-label="' + tt("Lerntage der letzten vier Wochen", "Learning days in the last four weeks") + '">' + out.join("") + "</div>", count: cnt, total: Object.keys(days).length };
 }
@@ -738,7 +740,7 @@ function openBig(name) {
 window.addEventListener("resize", () => document.querySelectorAll(".shot").forEach(paintLens));
 function openedLesson(l) {
   const t = now();
-  store.write("progress", { last: { id: l.id, at: t }, seen: { [l.id]: t }, active: t });
+  store.write("progress", { last: { id: l.id, at: t }, seen: { [l.id]: t }, active: t, days: { [dayKey()]: true } });
   if (!openLog[l.id] || t - openLog[l.id] > 10 * 60000) { openLog[l.id] = t; store.log("open", l.id); }
 }
 function markRead(id) {
